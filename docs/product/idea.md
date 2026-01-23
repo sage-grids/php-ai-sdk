@@ -54,3 +54,4 @@ We don't have to use them, but I'm just storing them here as a note.
 - https://replicate.com/docs 
 - https://platform.openai.com/docs/api-reference/introduction
 - https://github.com/openai-php/client
+- https://docs.langchain.com/oss/python/langchain/overview

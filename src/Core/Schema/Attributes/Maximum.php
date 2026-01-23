@@ -1,0 +1,11 @@
+<?php
+
+namespace SageGrids\PhpAiSdk\Core\Schema\Attributes;
+
+use Attribute;
+
+#[Attribute(Attribute::TARGET_PROPERTY | Attribute::TARGET_PARAMETER)]
+final readonly class Maximum
+{
+    public function __construct(public int|float $maximum) {}
+}

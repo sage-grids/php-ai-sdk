@@ -159,8 +159,8 @@ sage-grids/php-ai-sdk/
 │   │       ├── ImageResult.php         # Image generation result
 │   │       ├── SpeechResult.php        # Speech generation result
 │   │       ├── TranscriptionResult.php # Transcription result
-│   │       ├── EmbeddingResult.php     # Embedding result
-│   │       └── Usage.php               # Token/cost usage tracking
+│       ├── EmbeddingResult.php     # Embedding result
+│       └── Usage.php               # Token usage tracking
 │   │
 │   ├── Provider/
 │   │   ├── ProviderInterface.php       # Main provider contract
@@ -784,6 +784,8 @@ $schema = Schema::object([
 
 ### 6.3 Class-Based Schemas with Attributes
 
+Use attributes to define schema constraints directly on PHP classes. Note the use of `#[ArrayItems]` to define typed arrays, which PHP reflection cannot fully resolve.
+
 ```php
 use SageGrids\PhpAiSdk\Core\Schema\Attributes\{
     Description,
@@ -1366,6 +1368,7 @@ final class AIConfig
 
     /**
      * Enable/disable retry on transient errors.
+     * Note: Retries are automatically disabled for streaming requests once the stream has started.
      */
     public static function setRetryEnabled(bool $enabled): void;
 

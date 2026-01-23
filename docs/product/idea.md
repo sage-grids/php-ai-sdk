@@ -43,3 +43,14 @@ One competitor for this library is `https://github.com/WordPress/php-ai-client`
 . We need to make sure we're differentiating and providing a unique value.
 We can use that package in the background if it makes sense and the license allows it, 
 However, we must make sure that we're providing unique values that the competitor libraries don't. Aligning with the famous Javascript AI-SDK is one of the values, but we must excel in other areas too. Do comprehensive analysis and opportunity research while creating the PRD / Discovery documents.
+
+
+## Resources
+The below are a list of prominent sources in AI development/integration.
+We don't have to use them, but I'm just storing them here as a note.
+
+- https://models.dev/
+- https://openrouter.ai/docs/quickstart 
+- https://replicate.com/docs 
+- https://platform.openai.com/docs/api-reference/introduction
+- https://github.com/openai-php/client

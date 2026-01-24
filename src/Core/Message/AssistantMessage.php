@@ -12,6 +12,9 @@ final readonly class AssistantMessage extends Message
         parent::__construct(MessageRole::Assistant, $content);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array
     {
         $data = parent::toArray();

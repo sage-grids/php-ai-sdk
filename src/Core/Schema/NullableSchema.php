@@ -8,6 +8,9 @@ final class NullableSchema extends Schema
         private readonly Schema $innerSchema
     ) {}
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toJsonSchema(): array
     {
         $inner = $this->innerSchema->toJsonSchema();
@@ -21,19 +24,25 @@ final class NullableSchema extends Schema
             } else {
                 $inner['type'] = [$inner['type'], 'null'];
             }
+            $schema = $inner;
         } else {
-            // Case for anyOf/oneOf/enum
-            $inner['nullable'] = true; 
+            // Draft-07: represent nullability via anyOf
+            $schema = [
+                'anyOf' => [
+                    $inner,
+                    ['type' => 'null'],
+                ],
+            ];
         }
 
         if ($this->description) {
-            $inner['description'] = $this->description;
+            $schema['description'] = $this->description;
         }
         if ($this->defaultValue !== null) {
-            $inner['default'] = $this->defaultValue;
+            $schema['default'] = $this->defaultValue;
         }
 
-        return $inner;
+        return $schema;
     }
 
     public function validate(mixed $value): ValidationResult

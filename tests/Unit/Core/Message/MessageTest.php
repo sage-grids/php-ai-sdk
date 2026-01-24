@@ -43,13 +43,14 @@ final class MessageTest extends TestCase
 
     public function testToolMessage(): void
     {
-        $message = new ToolMessage('call_123', 'Result');
+        $message = new ToolMessage('call_123', ['status' => 'ok']);
         $this->assertSame(MessageRole::Tool, $message->role);
         $this->assertSame('call_123', $message->toolCallId);
-        $this->assertSame('Result', $message->content);
+        $this->assertSame(['status' => 'ok'], $message->result);
         
         $array = $message->toArray();
         $this->assertSame('call_123', $array['tool_call_id']);
+        $this->assertSame(['status' => 'ok'], $array['content']);
     }
 
     public function testMessageCollection(): void
@@ -65,4 +66,20 @@ final class MessageTest extends TestCase
         $this->assertSame('system', $array[0]['role']);
         $this->assertSame('user', $array[1]['role']);
     }
+
+    public function testMessageCollectionFactories(): void
+    {
+        $fromMessages = MessageCollection::fromMessages(
+            new SystemMessage('Sys'),
+            new UserMessage('User'),
+        );
+        $this->assertCount(2, $fromMessages);
+
+        $fromArray = MessageCollection::fromArray([
+            new SystemMessage('Sys'),
+            new UserMessage('User'),
+        ]);
+        $this->assertCount(2, $fromArray);
+    }
+
 }

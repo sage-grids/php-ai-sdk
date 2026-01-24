@@ -17,6 +17,30 @@ final class MessageCollection implements IteratorAggregate, Countable
      */
     private array $messages = [];
 
+    public static function fromMessages(Message ...$messages): self
+    {
+        $collection = new self();
+        foreach ($messages as $message) {
+            $collection->add($message);
+        }
+        return $collection;
+    }
+
+    /**
+     * @param array<Message> $messages
+     */
+    public static function fromArray(array $messages): self
+    {
+        $collection = new self();
+        foreach ($messages as $message) {
+            if (!$message instanceof Message) {
+                throw new \InvalidArgumentException('All items must be instances of Message.');
+            }
+            $collection->add($message);
+        }
+        return $collection;
+    }
+
     public function add(Message $message): self
     {
         $this->messages[] = $message;
@@ -33,6 +57,9 @@ final class MessageCollection implements IteratorAggregate, Countable
         return count($this->messages);
     }
 
+    /**
+     * @return array<int, array<string, mixed>>
+     */
     public function toArray(): array
     {
         return array_map(fn (Message $m) => $m->toArray(), $this->messages);

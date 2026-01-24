@@ -11,6 +11,9 @@ final class EnumSchema extends Schema
         private readonly array $values
     ) {}
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toJsonSchema(): array
     {
         $schema = ['enum' => $this->values];

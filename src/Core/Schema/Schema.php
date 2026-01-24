@@ -11,6 +11,9 @@ abstract class Schema
     protected mixed $defaultValue = null;
     protected bool $isOptional = false;
 
+    /**
+     * @return array<string, mixed>
+     */
     abstract public function toJsonSchema(): array;
 
     abstract public function validate(mixed $value): ValidationResult;
@@ -79,6 +82,9 @@ abstract class Schema
         return new ObjectSchema($properties);
     }
 
+    /**
+     * @param array<string|int|float|bool> $values
+     */
     public static function enum(array $values): EnumSchema
     {
         return new EnumSchema($values);
@@ -124,40 +130,36 @@ abstract class Schema
     private static function createSchemaFromProperty(\ReflectionProperty $prop): Schema
     {
         $type = $prop->getType();
-        
-        if (!$type instanceof \ReflectionNamedType) {
-            // Complex types (union/intersection) not fully supported in this simple version
-            // For now default to string or throw
-            throw new \RuntimeException("Union/Intersection types not fully supported in fromClass yet. Property: {$prop->getName()}");
+
+        if ($type === null) {
+            throw new \RuntimeException("Property {$prop->getName()} must have a type for schema generation.");
         }
 
-        $typeName = $type->getName();
-        $schema = null;
+        $nullable = false;
 
-        if ($type->isBuiltin()) {
-            $schema = match ($typeName) {
-                'string' => self::string(),
-                'int' => self::integer(),
-                'float' => self::number(),
-                'bool' => self::boolean(),
-                'array' => self::createArraySchema($prop),
-                default => throw new \RuntimeException("Unsupported builtin type: $typeName"),
-            };
-        } elseif (enum_exists($typeName)) {
-            $reflectionEnum = new \ReflectionEnum($typeName);
-            if ($reflectionEnum->isBacked()) {
-                $values = array_map(fn($case) => $case->getBackingValue(), $reflectionEnum->getCases());
-                $schema = self::enum($values);
-            } else {
-                // Unit enum names
-                $values = array_map(fn($case) => $case->name, $reflectionEnum->getCases());
-                $schema = self::enum($values);
+        if ($type instanceof \ReflectionUnionType) {
+            $schemas = [];
+            foreach ($type->getTypes() as $memberType) {
+                if (!$memberType instanceof \ReflectionNamedType) {
+                    throw new \RuntimeException("Intersection types are not supported in fromClass. Property: {$prop->getName()}");
+                }
+                if ($memberType->getName() === 'null') {
+                    $nullable = true;
+                    continue;
+                }
+                $schemas[] = self::createSchemaFromNamedType($memberType, $prop);
             }
-        } elseif (class_exists($typeName)) {
-             // Recursive object
-             $schema = self::fromClass($typeName);
+
+            if (empty($schemas)) {
+                throw new \RuntimeException("Union type for {$prop->getName()} must include at least one non-null type.");
+            }
+
+            $schema = count($schemas) === 1 ? $schemas[0] : self::union($schemas);
+        } elseif ($type instanceof \ReflectionNamedType) {
+            $schema = self::createSchemaFromNamedType($type, $prop);
+            $nullable = $type->allowsNull();
         } else {
-            throw new \RuntimeException("Unknown type: $typeName");
+            throw new \RuntimeException("Unsupported type for {$prop->getName()}.");
         }
 
         // Apply Attributes
@@ -178,14 +180,14 @@ abstract class Schema
         }
 
         // Handle Nullable
-        if ($type->allowsNull()) {
-             $schema = self::nullable($schema);
-             // If property has default null, it is also optional
-             if ($prop->hasDefaultValue() && $prop->getDefaultValue() === null) {
-                 $schema->optional();
-             }
+        if ($nullable) {
+            $schema = self::nullable($schema);
+            // If property has default null, it is also optional
+            if ($prop->hasDefaultValue() && $prop->getDefaultValue() === null) {
+                $schema->optional();
+            }
         }
-        
+
         // Handle Default Value
         if ($prop->hasDefaultValue()) {
             $schema->default($prop->getDefaultValue());
@@ -194,15 +196,45 @@ abstract class Schema
         return $schema;
     }
 
+    private static function createSchemaFromNamedType(\ReflectionNamedType $type, \ReflectionProperty $prop): Schema
+    {
+        $typeName = $type->getName();
+
+        if ($type->isBuiltin()) {
+            return match ($typeName) {
+                'string' => self::string(),
+                'int' => self::integer(),
+                'float' => self::number(),
+                'bool' => self::boolean(),
+                'array' => self::createArraySchema($prop),
+                default => throw new \RuntimeException("Unsupported builtin type: $typeName"),
+            };
+        }
+
+        if (enum_exists($typeName)) {
+            $reflectionEnum = new \ReflectionEnum($typeName);
+            if ($reflectionEnum->isBacked()) {
+                $values = array_map(fn($case) => $case->getBackingValue(), $reflectionEnum->getCases());
+                return self::enum($values);
+            }
+            // Unit enum names
+            $values = array_map(fn($case) => $case->name, $reflectionEnum->getCases());
+            return self::enum($values);
+        }
+
+        if (class_exists($typeName)) {
+            // Recursive object
+            return self::fromClass($typeName);
+        }
+
+        throw new \RuntimeException("Unknown type: $typeName");
+    }
+
     private static function createArraySchema(\ReflectionProperty $prop): ArraySchema
     {
         $attr = $prop->getAttributes(Attributes\ArrayItems::class)[0] ?? null;
         if (!$attr) {
-             // Fallback to array of strings if not specified? Or throw?
-             // Better to be explicit
-             // throw new \RuntimeException("Array property {$prop->getName()} must have #[ArrayItems] attribute");
-             // Relaxed: array of mixed/strings
-             return self::array(self::string()->description('Mixed/Unknown type'));
+            throw new \RuntimeException("Array property {$prop->getName()} must have #[ArrayItems] attribute");
         }
 
         $inst = $attr->newInstance();
@@ -234,4 +266,3 @@ abstract class Schema
         return $schema;
     }
 }
-

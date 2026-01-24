@@ -4,6 +4,9 @@ namespace SageGrids\PhpAiSdk\Core\Schema;
 
 final class BooleanSchema extends Schema
 {
+    /**
+     * @return array<string, mixed>
+     */
     public function toJsonSchema(): array
     {
         $schema = ['type' => 'boolean'];

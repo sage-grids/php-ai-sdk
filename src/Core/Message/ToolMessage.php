@@ -6,16 +6,19 @@ final readonly class ToolMessage extends Message
 {
     public function __construct(
         public string $toolCallId,
-        string $content,
+        public mixed $result,
     ) {
-        parent::__construct(MessageRole::Tool, $content);
+        parent::__construct(MessageRole::Tool, $result);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array
     {
         return [
             'role' => $this->role->value,
-            'content' => $this->content,
+            'content' => $this->result,
             'tool_call_id' => $this->toolCallId,
         ];
     }

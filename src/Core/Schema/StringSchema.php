@@ -33,6 +33,9 @@ final class StringSchema extends Schema
         return $this;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toJsonSchema(): array
     {
         $schema = ['type' => 'string'];

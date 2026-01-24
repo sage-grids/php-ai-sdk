@@ -19,6 +19,9 @@ final class ObjectSchema extends Schema
         return $this;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toJsonSchema(): array
     {
         $schema = [

@@ -11,6 +11,9 @@ final class UnionSchema extends Schema
         private readonly array $schemas
     ) {}
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toJsonSchema(): array
     {
         $schema = [

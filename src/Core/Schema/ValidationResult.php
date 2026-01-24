@@ -17,6 +17,9 @@ final readonly class ValidationResult
         return new self(true);
     }
 
+    /**
+     * @param string[] $errors
+     */
     public static function invalid(array $errors): self
     {
         return new self(false, $errors);

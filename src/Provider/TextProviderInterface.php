@@ -9,7 +9,7 @@ use SageGrids\PhpAiSdk\Result\ObjectChunk;
 use SageGrids\PhpAiSdk\Result\ObjectResult;
 use SageGrids\PhpAiSdk\Result\TextChunk;
 use SageGrids\PhpAiSdk\Result\TextResult;
-use SageGrids\PhpAiSdk\Tool\Tool;
+use SageGrids\PhpAiSdk\Core\Tool\Tool;
 
 /**
  * Interface for providers that support text generation.

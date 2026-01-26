@@ -7,5 +7,7 @@ use Attribute;
 #[Attribute(Attribute::TARGET_PROPERTY | Attribute::TARGET_PARAMETER)]
 final readonly class Minimum
 {
-    public function __construct(public int|float $minimum) {}
+    public function __construct(public int|float $minimum)
+    {
+    }
 }

@@ -11,7 +11,7 @@ final class IntegerSchema extends NumberSchema
         if (!is_int($value)) {
             return ValidationResult::invalid(['Value must be an integer']);
         }
-        
+
         return parent::validate($value);
     }
 }

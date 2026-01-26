@@ -6,7 +6,8 @@ final class NullableSchema extends Schema
 {
     public function __construct(
         private readonly Schema $innerSchema
-    ) {}
+    ) {
+    }
 
     /**
      * @return array<string, mixed>
@@ -14,7 +15,7 @@ final class NullableSchema extends Schema
     public function toJsonSchema(): array
     {
         $inner = $this->innerSchema->toJsonSchema();
-        
+
         // Handle type array if already exists (e.g. ['string', 'integer'])
         if (isset($inner['type'])) {
             if (is_array($inner['type'])) {

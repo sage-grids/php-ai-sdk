@@ -10,7 +10,8 @@ final readonly class ValidationResult
     public function __construct(
         public bool $isValid,
         public array $errors = [],
-    ) {}
+    ) {
+    }
 
     public static function valid(): self
     {

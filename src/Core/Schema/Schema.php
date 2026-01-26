@@ -2,7 +2,6 @@
 
 namespace SageGrids\PhpAiSdk\Core\Schema;
 
-use Closure;
 use ReflectionClass;
 
 abstract class Schema
@@ -112,8 +111,8 @@ abstract class Schema
         $properties = [];
 
         foreach ($ref->getProperties(\ReflectionProperty::IS_PUBLIC) as $prop) {
-             $schema = self::createSchemaFromProperty($prop);
-             $properties[$prop->getName()] = $schema;
+            $schema = self::createSchemaFromProperty($prop);
+            $properties[$prop->getName()] = $schema;
         }
 
         $schema = self::object($properties);
@@ -214,11 +213,11 @@ abstract class Schema
         if (enum_exists($typeName)) {
             $reflectionEnum = new \ReflectionEnum($typeName);
             if ($reflectionEnum->isBacked()) {
-                $values = array_map(fn($case) => $case->getBackingValue(), $reflectionEnum->getCases());
+                $values = array_map(fn ($case) => $case->getBackingValue(), $reflectionEnum->getCases());
                 return self::enum($values);
             }
             // Unit enum names
-            $values = array_map(fn($case) => $case->name, $reflectionEnum->getCases());
+            $values = array_map(fn ($case) => $case->name, $reflectionEnum->getCases());
             return self::enum($values);
         }
 
@@ -246,12 +245,12 @@ abstract class Schema
             if (class_exists($inst->items)) {
                 $itemsSchema = self::fromClass($inst->items);
             } elseif (in_array($inst->items, ['string', 'int', 'float', 'bool'])) {
-                 $itemsSchema = match($inst->items) {
+                $itemsSchema = match($inst->items) {
                     'string' => self::string(),
                     'int' => self::integer(),
                     'float' => self::number(),
                     'bool' => self::boolean(),
-                 };
+                };
             }
         }
 
@@ -260,8 +259,12 @@ abstract class Schema
         }
 
         $schema = self::array($itemsSchema);
-        if ($inst->minItems !== null) $schema->minItems($inst->minItems);
-        if ($inst->maxItems !== null) $schema->maxItems($inst->maxItems);
+        if ($inst->minItems !== null) {
+            $schema->minItems($inst->minItems);
+        }
+        if ($inst->maxItems !== null) {
+            $schema->maxItems($inst->maxItems);
+        }
 
         return $schema;
     }

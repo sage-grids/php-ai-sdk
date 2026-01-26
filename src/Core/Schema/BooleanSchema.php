@@ -10,7 +10,7 @@ final class BooleanSchema extends Schema
     public function toJsonSchema(): array
     {
         $schema = ['type' => 'boolean'];
-        
+
         if ($this->description) {
             $schema['description'] = $this->description;
         }

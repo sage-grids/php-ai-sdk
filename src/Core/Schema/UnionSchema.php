@@ -9,7 +9,8 @@ final class UnionSchema extends Schema
      */
     public function __construct(
         private readonly array $schemas
-    ) {}
+    ) {
+    }
 
     /**
      * @return array<string, mixed>
@@ -17,7 +18,7 @@ final class UnionSchema extends Schema
     public function toJsonSchema(): array
     {
         $schema = [
-            'anyOf' => array_map(fn(Schema $s) => $s->toJsonSchema(), $this->schemas)
+            'anyOf' => array_map(fn (Schema $s) => $s->toJsonSchema(), $this->schemas)
         ];
 
         if ($this->description) {

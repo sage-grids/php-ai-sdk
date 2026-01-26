@@ -11,7 +11,8 @@ final class ObjectSchema extends Schema
      */
     public function __construct(
         private readonly array $properties
-    ) {}
+    ) {
+    }
 
     public function additionalProperties(bool $allowed): self
     {
@@ -41,7 +42,7 @@ final class ObjectSchema extends Schema
                 $schema['required'][] = $name;
             }
         }
-        
+
         if (empty($schema['required'])) {
             unset($schema['required']);
         }
@@ -58,7 +59,7 @@ final class ObjectSchema extends Schema
         if (!is_array($value) && !is_object($value)) {
             return ValidationResult::invalid(['Value must be an object']);
         }
-        
+
         $valueArray = (array)$value;
         $errors = [];
 

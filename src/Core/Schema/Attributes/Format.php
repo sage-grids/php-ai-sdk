@@ -7,5 +7,7 @@ use Attribute;
 #[Attribute(Attribute::TARGET_PROPERTY | Attribute::TARGET_PARAMETER)]
 final readonly class Format
 {
-    public function __construct(public string $format) {}
+    public function __construct(public string $format)
+    {
+    }
 }

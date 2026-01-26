@@ -70,7 +70,7 @@ class NumberSchema extends Schema
         if ($this->multipleOf !== null) {
             // Use fmod for float safe modulo
             if (fmod((float)$value, (float)$this->multipleOf) != 0) {
-                 return ValidationResult::invalid(["Value must be a multiple of {$this->multipleOf}"]);
+                return ValidationResult::invalid(["Value must be a multiple of {$this->multipleOf}"]);
             }
         }
 

@@ -2,8 +2,8 @@
 
 namespace SageGrids\PhpAiSdk\Http;
 
-use Psr\Http\Message\StreamInterface;
 use Generator;
+use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 
 class StreamingResponse

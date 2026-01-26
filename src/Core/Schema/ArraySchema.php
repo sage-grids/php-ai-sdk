@@ -9,7 +9,8 @@ final class ArraySchema extends Schema
 
     public function __construct(
         private readonly Schema $items
-    ) {}
+    ) {
+    }
 
     public function minItems(int $minItems): self
     {
@@ -68,7 +69,7 @@ final class ArraySchema extends Schema
         foreach ($value as $index => $item) {
             $result = $this->items->validate($item);
             if (!$result->isValid) {
-                $errors = array_map(fn($e) => "Item at index $index: $e", $result->errors);
+                $errors = array_map(fn ($e) => "Item at index $index: $e", $result->errors);
                 return ValidationResult::invalid($errors);
             }
         }

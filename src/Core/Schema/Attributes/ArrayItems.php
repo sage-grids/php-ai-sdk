@@ -15,5 +15,6 @@ final readonly class ArrayItems
         public string|Schema $items,
         public ?int $minItems = null,
         public ?int $maxItems = null,
-    ) {}
+    ) {
+    }
 }

@@ -9,7 +9,8 @@ final class EnumSchema extends Schema
      */
     public function __construct(
         private readonly array $values
-    ) {}
+    ) {
+    }
 
     /**
      * @return array<string, mixed>

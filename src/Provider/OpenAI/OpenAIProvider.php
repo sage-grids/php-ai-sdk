@@ -4,7 +4,6 @@ namespace SageGrids\PhpAiSdk\Provider\OpenAI;
 
 use Generator;
 use SageGrids\PhpAiSdk\Core\Message\Message;
-use SageGrids\PhpAiSdk\Core\Message\MessageRole;
 use SageGrids\PhpAiSdk\Core\Message\SystemMessage;
 use SageGrids\PhpAiSdk\Core\Schema\Schema;
 use SageGrids\PhpAiSdk\Core\Tool\Tool;

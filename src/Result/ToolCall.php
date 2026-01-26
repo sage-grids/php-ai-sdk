@@ -26,14 +26,16 @@ final readonly class ToolCall
      */
     public static function fromArray(array $data): self
     {
-        $arguments = $data['arguments'] ?? $data['input'] ?? [];
+        /** @var array<string, mixed> $function */
+        $function = $data['function'] ?? [];
+
+        // Try to get arguments from multiple locations (different provider formats)
+        // OpenAI: function.arguments, Anthropic: input, direct: arguments
+        $arguments = $data['arguments'] ?? $function['arguments'] ?? $data['input'] ?? [];
         if (is_string($arguments)) {
             $decoded = json_decode($arguments, true);
             $arguments = is_array($decoded) ? $decoded : [];
         }
-
-        /** @var array<string, mixed> $function */
-        $function = $data['function'] ?? [];
 
         /** @var string|null $id */
         $id = $data['id'] ?? '';

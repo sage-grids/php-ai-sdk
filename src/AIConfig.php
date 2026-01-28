@@ -9,6 +9,7 @@ use SageGrids\PhpAiSdk\Event\NullEventDispatcher;
 use SageGrids\PhpAiSdk\Provider\ProviderInterface;
 use SageGrids\PhpAiSdk\Provider\ProviderRegistry;
 use SageGrids\PhpAiSdk\Provider\OpenAI\OpenAIProvider;
+use SageGrids\PhpAiSdk\Provider\OpenRouter\OpenRouterProvider;
 
 /**
  * Static configuration class for global AI settings.
@@ -152,6 +153,7 @@ final class AIConfig
      *
      * Supported environment variables:
      * - OPENAI_API_KEY: Configures OpenAI provider
+     * - OPENROUTER_API_KEY: Configures OpenRouter provider for multi-model access
      * - ANTHROPIC_API_KEY: (future) Configures Anthropic provider
      */
     public static function autoConfigureFromEnv(): void
@@ -167,6 +169,18 @@ final class AIConfig
             // Set as default if no provider is set
             if (self::$provider === null) {
                 self::$provider = 'openai/gpt-4o';
+            }
+        }
+
+        // OpenRouter (multi-model access)
+        $openrouterKey = getenv('OPENROUTER_API_KEY');
+        if ($openrouterKey !== false && $openrouterKey !== '') {
+            $provider = new OpenRouterProvider($openrouterKey);
+            $registry->register('openrouter', $provider);
+
+            // Set as default if no provider is set
+            if (self::$provider === null) {
+                self::$provider = 'openrouter/anthropic/claude-3.5-sonnet';
             }
         }
 

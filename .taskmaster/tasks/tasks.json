@@ -224,18 +224,19 @@
       },
       {
         "id": "12",
-        "title": "Gemini provider implementation",
-        "description": "Implement Google Gemini provider with text generation, streaming, structured output, and tool calling support",
-        "details": "Create src/Provider/Gemini/ directory. Implement GeminiProvider final class implementing TextProviderInterface. Constructor accepts apiKey, ?HttpClientInterface, ?GeminiConfig. GeminiConfig includes baseUrl (default 'https://generativelanguage.googleapis.com'). Implement generateText(): convert messages to Gemini format {role: 'user'|'model', parts: [{text}]}, handle system instructions separately in systemInstruction field, send POST to /v1beta/models/{model}:generateContent with API key in query param or header. Map Gemini's candidates[0].content.parts[0].text to TextResult. Handle finishReason mapping (STOP, MAX_TOKENS, SAFETY, RECITATION). Parse usageMetadata for token counts. Implement streamText(): use :streamGenerateContent endpoint with SSE, parse chunks similar to OpenAI. Implement generateObject(): use generationConfig.response_mime_type='application/json' and response_schema (Gemini native schema format), validate and parse. Support tool calling via Gemini's functionCallingConfig and function declarations format (different from OpenAI). Handle multimodal input (text + images) in parts array. Support models: gemini-1.5-pro, gemini-1.5-flash, gemini-1.0-pro. Map Gemini-specific errors to standard exceptions.",
-        "testStrategy": "Integration tests with Gemini API, message format conversion (especially multi-turn and system instructions), tool/function declaration formatting, streaming response parsing, structured output with native schema format, error handling, safety settings, multimodal input support",
-        "priority": "medium",
+        "title": "Google provider implementation",
+        "description": "Implement Google Gemini provider (using Google namespace) with text generation, streaming, structured output, and tool calling support",
+        "status": "done",
         "dependencies": [
           "5",
           "6",
           "7"
         ],
-        "status": "pending",
-        "subtasks": []
+        "priority": "medium",
+        "details": "Create src/Provider/Google/ directory (following Vercel AI SDK naming conventions where this provider is called 'google'). Implement GoogleProvider final class implementing TextProviderInterface (namespace: SageGrids\\PhpAiSdk\\Provider\\Google). Constructor accepts apiKey (string), ?HttpClientInterface, ?GoogleConfig. GoogleConfig readonly class includes baseUrl (default 'https://generativelanguage.googleapis.com'), timeout (int), defaultModel (string). Follow OpenAIProvider structure at src/Provider/OpenAI/OpenAIProvider.php:31 as reference for implementation pattern. Implement generateText(): convert messages to Gemini format {role: 'user'|'model', parts: [{text}]}, handle system instructions separately in systemInstruction field (not in messages array like OpenAI), send POST to /v1beta/models/{model}:generateContent with API key in query param (?key=) or X-Goog-Api-Key header. Map Gemini's candidates[0].content.parts[0].text to TextResult. Handle finishReason mapping (STOP -> FinishReason::STOP, MAX_TOKENS -> FinishReason::LENGTH, SAFETY -> FinishReason::CONTENT_FILTER, RECITATION -> FinishReason::CONTENT_FILTER). Parse usageMetadata for token counts (map to Usage::fromArray format). Implement streamText(): use :streamGenerateContent endpoint with SSE (Server-Sent Events), parse chunks similar to OpenAI streaming pattern in OpenAIProvider.php:124-204. Implement generateObject(): use generationConfig.response_mime_type='application/json' and response_schema with Gemini native schema format (different from JSON Schema - uses type, properties, required, items structure but with Gemini-specific typing), validate response with Schema::validate() and parse JSON. Implement streamObject(): stream JSON with partial object parsing similar to OpenAIProvider.php:277-383. Support tool calling via Gemini's functionCallingConfig and function declarations format (uses 'function' type with 'name', 'description', 'parameters' structure - different from OpenAI's tools array). Handle multimodal input by accepting text + images in parts array format [{text}, {inlineData: {mimeType, data}}]. Support models: gemini-1.5-pro, gemini-1.5-flash, gemini-1.0-pro, gemini-2.0-flash-exp. Implement getName() returning 'google'. Map Gemini-specific errors to standard exceptions (create src/Provider/Google/Exception/GoogleException.php extending base exception, similar to OpenAI/Exception/OpenAIException.php at line 14). Note: This uses the 'Google' namespace for consistency with Vercel AI SDK naming (which uses 'google' as provider name), while accessing Gemini models via generativelanguage.googleapis.com API.",
+        "testStrategy": "Integration tests with Gemini API at generativelanguage.googleapis.com, message format conversion (especially multi-turn conversations and system instructions handling), tool/function declaration formatting (Gemini format vs OpenAI format comparison), streaming response parsing with SSE chunks, structured output with Gemini native schema format (test response_mime_type and response_schema), error handling with GoogleException, safety settings configuration, multimodal input support (text + image parts), token usage extraction from usageMetadata field. Create tests in tests/Unit/Provider/Google/ following pattern from tests/Unit/Provider/OpenAI/OpenAIProviderTest.php (tests/Unit/Provider/OpenAI/OpenAIProviderTest.php:28-100 shows test structure with mocked HttpClientInterface, capability assertions, and generateText testing).",
+        "subtasks": [],
+        "updatedAt": "2026-01-28T16:11:31.238Z"
       },
       {
         "id": "13",
@@ -268,9 +269,9 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-01-27T15:14:40.906Z",
+      "lastModified": "2026-01-28T16:11:31.239Z",
       "taskCount": 14,
-      "completedCount": 11,
+      "completedCount": 12,
       "tags": [
         "master"
       ]

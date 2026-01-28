@@ -27,6 +27,14 @@ final class GenerateObject extends AbstractGenerationFunction
     }
 
     /**
+     * {@inheritDoc}
+     */
+    protected function getOperationName(): string
+    {
+        return 'generateObject';
+    }
+
+    /**
      * @inheritDoc
      */
     protected function parseOptions(): void
@@ -46,22 +54,33 @@ final class GenerateObject extends AbstractGenerationFunction
      */
     public function execute(): ObjectResult
     {
-        // Build system message with schema context
-        $effectiveSystem = $this->buildEffectiveSystem();
+        $startTime = $this->dispatchRequestStarted([
+            'messageCount' => count($this->messages),
+            'schemaName' => $this->schemaName,
+        ]);
 
-        $result = $this->provider->generateObject(
-            messages: $this->messages,
-            schema: $this->schema,
-            system: $effectiveSystem,
-            maxTokens: $this->maxTokens,
-            temperature: $this->temperature,
-            topP: $this->topP,
-            stopSequences: $this->stopSequences,
-        );
+        try {
+            // Build system message with schema context
+            $effectiveSystem = $this->buildEffectiveSystem();
 
-        $this->invokeOnFinish($result);
+            $result = $this->provider->generateObject(
+                messages: $this->messages,
+                schema: $this->schema,
+                system: $effectiveSystem,
+                maxTokens: $this->maxTokens,
+                temperature: $this->temperature,
+                topP: $this->topP,
+                stopSequences: $this->stopSequences,
+            );
 
-        return $result;
+            $this->invokeOnFinish($result);
+            $this->dispatchRequestCompleted($result, $startTime, $result->usage);
+
+            return $result;
+        } catch (\Throwable $e) {
+            $this->dispatchErrorOccurred($e);
+            throw $e;
+        }
     }
 
     /**

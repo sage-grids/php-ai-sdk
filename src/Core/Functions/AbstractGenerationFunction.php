@@ -9,10 +9,18 @@ use SageGrids\PhpAiSdk\Core\Message\Message;
 use SageGrids\PhpAiSdk\Core\Message\UserMessage;
 use SageGrids\PhpAiSdk\Core\Schema\Schema;
 use SageGrids\PhpAiSdk\Core\Tool\Tool;
+use SageGrids\PhpAiSdk\Event\EventDispatcherInterface;
+use SageGrids\PhpAiSdk\Event\Events\ErrorOccurred;
+use SageGrids\PhpAiSdk\Event\Events\RequestCompleted;
+use SageGrids\PhpAiSdk\Event\Events\RequestStarted;
+use SageGrids\PhpAiSdk\Event\Events\StreamChunkReceived;
+use SageGrids\PhpAiSdk\Event\Events\ToolCallCompleted;
+use SageGrids\PhpAiSdk\Event\Events\ToolCallStarted;
 use SageGrids\PhpAiSdk\Exception\InputValidationException;
 use SageGrids\PhpAiSdk\Provider\ProviderInterface;
 use SageGrids\PhpAiSdk\Provider\ProviderRegistry;
 use SageGrids\PhpAiSdk\Provider\TextProviderInterface;
+use SageGrids\PhpAiSdk\Result\Usage;
 
 /**
  * Abstract base class for generation functions.
@@ -52,12 +60,15 @@ abstract class AbstractGenerationFunction
 
     protected int $maxToolRoundtrips;
 
+    protected EventDispatcherInterface $eventDispatcher;
+
     /**
      * @param array<string, mixed> $options
      */
     public function __construct(array $options)
     {
         $this->options = AIConfig::mergeWithDefaults($options);
+        $this->eventDispatcher = AIConfig::getEventDispatcher();
         $this->parseOptions();
     }
 
@@ -244,5 +255,121 @@ abstract class AbstractGenerationFunction
         if ($this->onFinish !== null) {
             ($this->onFinish)($result);
         }
+    }
+
+    /**
+     * Get the operation name for this function.
+     */
+    abstract protected function getOperationName(): string;
+
+    /**
+     * Dispatch a RequestStarted event.
+     *
+     * @param array<string, mixed> $parameters Additional parameters to include in the event.
+     * @return float The start time for duration calculation.
+     */
+    protected function dispatchRequestStarted(array $parameters = []): float
+    {
+        $this->eventDispatcher->dispatch(
+            RequestStarted::create(
+                $this->provider->getName(),
+                $this->model,
+                $this->getOperationName(),
+                $parameters,
+            )
+        );
+
+        return microtime(true);
+    }
+
+    /**
+     * Dispatch a RequestCompleted event.
+     *
+     * @param mixed $result The result of the request.
+     * @param float $startTime The start time from dispatchRequestStarted.
+     * @param Usage|null $usage Token usage statistics.
+     */
+    protected function dispatchRequestCompleted(mixed $result, float $startTime, ?Usage $usage = null): void
+    {
+        $this->eventDispatcher->dispatch(
+            RequestCompleted::create(
+                $this->provider->getName(),
+                $this->model,
+                $this->getOperationName(),
+                $result,
+                $startTime,
+                $usage,
+            )
+        );
+    }
+
+    /**
+     * Dispatch a StreamChunkReceived event.
+     *
+     * @param mixed $chunk The chunk that was received.
+     * @param int $chunkIndex The index of the chunk.
+     */
+    protected function dispatchStreamChunkReceived(mixed $chunk, int $chunkIndex): void
+    {
+        $this->eventDispatcher->dispatch(
+            new StreamChunkReceived(
+                $this->provider->getName(),
+                $this->model,
+                $chunk,
+                $chunkIndex,
+            )
+        );
+    }
+
+    /**
+     * Dispatch a ToolCallStarted event.
+     *
+     * @param string $toolName The name of the tool being called.
+     * @param array<string, mixed> $arguments The tool arguments.
+     * @return float The start time for duration calculation.
+     */
+    protected function dispatchToolCallStarted(string $toolName, array $arguments): float
+    {
+        $this->eventDispatcher->dispatch(
+            ToolCallStarted::create($toolName, $arguments)
+        );
+
+        return microtime(true);
+    }
+
+    /**
+     * Dispatch a ToolCallCompleted event.
+     *
+     * @param string $toolName The name of the tool that was called.
+     * @param array<string, mixed> $arguments The tool arguments.
+     * @param mixed $result The tool result.
+     * @param float $startTime The start time from dispatchToolCallStarted.
+     */
+    protected function dispatchToolCallCompleted(
+        string $toolName,
+        array $arguments,
+        mixed $result,
+        float $startTime,
+    ): void {
+        $this->eventDispatcher->dispatch(
+            ToolCallCompleted::create($toolName, $arguments, $result, $startTime)
+        );
+    }
+
+    /**
+     * Dispatch an ErrorOccurred event.
+     *
+     * @param \Throwable $exception The exception that occurred.
+     */
+    protected function dispatchErrorOccurred(\Throwable $exception): void
+    {
+        $this->eventDispatcher->dispatch(
+            ErrorOccurred::create(
+                $exception,
+                $this->provider->getName(),
+                $this->model,
+                $this->getOperationName(),
+            )
+        );
     }
 }

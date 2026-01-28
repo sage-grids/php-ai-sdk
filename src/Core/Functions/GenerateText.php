@@ -30,40 +30,60 @@ final class GenerateText extends AbstractGenerationFunction
     }
 
     /**
+     * {@inheritDoc}
+     */
+    protected function getOperationName(): string
+    {
+        return 'generateText';
+    }
+
+    /**
      * Execute the text generation.
      */
     public function execute(): TextResult
     {
-        $messages = $this->messages;
-        $roundtrip = 0;
+        $startTime = $this->dispatchRequestStarted([
+            'messageCount' => count($this->messages),
+            'hasTools' => $this->tools !== null,
+        ]);
 
-        while (true) {
-            $result = $this->provider->generateText(
-                messages: $messages,
-                system: $this->system,
-                maxTokens: $this->maxTokens,
-                temperature: $this->temperature,
-                topP: $this->topP,
-                stopSequences: $this->stopSequences,
-                tools: $this->tools,
-                toolChoice: $this->toolChoice,
-            );
+        try {
+            $messages = $this->messages;
+            $roundtrip = 0;
 
-            // If no tool calls or tool execution not needed, return the result
-            if (!$result->hasToolCalls() || !$this->shouldExecuteTools()) {
-                $this->invokeOnFinish($result);
-                return $result;
+            while (true) {
+                $result = $this->provider->generateText(
+                    messages: $messages,
+                    system: $this->system,
+                    maxTokens: $this->maxTokens,
+                    temperature: $this->temperature,
+                    topP: $this->topP,
+                    stopSequences: $this->stopSequences,
+                    tools: $this->tools,
+                    toolChoice: $this->toolChoice,
+                );
+
+                // If no tool calls or tool execution not needed, return the result
+                if (!$result->hasToolCalls() || !$this->shouldExecuteTools()) {
+                    $this->invokeOnFinish($result);
+                    $this->dispatchRequestCompleted($result, $startTime, $result->usage);
+                    return $result;
+                }
+
+                // Check max roundtrips
+                $roundtrip++;
+                if ($roundtrip > $this->maxToolRoundtrips) {
+                    $this->invokeOnFinish($result);
+                    $this->dispatchRequestCompleted($result, $startTime, $result->usage);
+                    return $result;
+                }
+
+                // Execute tools and continue conversation
+                $messages = $this->executeToolsAndContinue($messages, $result);
             }
-
-            // Check max roundtrips
-            $roundtrip++;
-            if ($roundtrip > $this->maxToolRoundtrips) {
-                $this->invokeOnFinish($result);
-                return $result;
-            }
-
-            // Execute tools and continue conversation
-            $messages = $this->executeToolsAndContinue($messages, $result);
+        } catch (\Throwable $e) {
+            $this->dispatchErrorOccurred($e);
+            throw $e;
         }
     }
 
@@ -124,7 +144,18 @@ final class GenerateText extends AbstractGenerationFunction
                 continue;
             }
 
+            // Dispatch tool call started event
+            $toolStartTime = $this->dispatchToolCallStarted($toolCall->name, $toolCall->arguments);
+
             $toolResult = $executor->execute($tool, $toolCall);
+
+            // Dispatch tool call completed event
+            $this->dispatchToolCallCompleted(
+                $toolCall->name,
+                $toolCall->arguments,
+                $toolResult->result,
+                $toolStartTime,
+            );
 
             // Convert result to string for the message
             $content = $toolResult->isSuccess()

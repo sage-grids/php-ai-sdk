@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SageGrids\PhpAiSdk;
 
+use SageGrids\PhpAiSdk\Event\EventDispatcherInterface;
+use SageGrids\PhpAiSdk\Event\NullEventDispatcher;
 use SageGrids\PhpAiSdk\Provider\ProviderInterface;
 use SageGrids\PhpAiSdk\Provider\ProviderRegistry;
 use SageGrids\PhpAiSdk\Provider\OpenAI\OpenAIProvider;
@@ -28,6 +30,9 @@ final class AIConfig
 
     /** @var int Default max tool roundtrips */
     private static int $maxToolRoundtrips = 5;
+
+    /** @var EventDispatcherInterface Event dispatcher for lifecycle events */
+    private static ?EventDispatcherInterface $eventDispatcher = null;
 
     private function __construct()
     {
@@ -117,6 +122,29 @@ final class AIConfig
     }
 
     /**
+     * Set the event dispatcher for lifecycle events.
+     *
+     * @param EventDispatcherInterface $dispatcher The event dispatcher to use.
+     */
+    public static function setEventDispatcher(EventDispatcherInterface $dispatcher): void
+    {
+        self::$eventDispatcher = $dispatcher;
+    }
+
+    /**
+     * Get the event dispatcher.
+     *
+     * Returns the configured event dispatcher, or a NullEventDispatcher if
+     * none has been configured (providing zero overhead by default).
+     *
+     * @return EventDispatcherInterface The event dispatcher.
+     */
+    public static function getEventDispatcher(): EventDispatcherInterface
+    {
+        return self::$eventDispatcher ?? new NullEventDispatcher();
+    }
+
+    /**
      * Auto-configure from environment variables.
      *
      * Looks for common API key environment variables and automatically
@@ -157,5 +185,6 @@ final class AIConfig
         self::$defaults = [];
         self::$timeout = 30;
         self::$maxToolRoundtrips = 5;
+        self::$eventDispatcher = null;
     }
 }

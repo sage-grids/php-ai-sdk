@@ -28,6 +28,14 @@ final class StreamObject extends AbstractGenerationFunction
     }
 
     /**
+     * {@inheritDoc}
+     */
+    protected function getOperationName(): string
+    {
+        return 'streamObject';
+    }
+
+    /**
      * @inheritDoc
      */
     protected function parseOptions(): void
@@ -47,30 +55,44 @@ final class StreamObject extends AbstractGenerationFunction
      */
     public function execute(): Generator
     {
-        // Build system message with schema context
-        $effectiveSystem = $this->buildEffectiveSystem();
+        $startTime = $this->dispatchRequestStarted([
+            'messageCount' => count($this->messages),
+            'schemaName' => $this->schemaName,
+        ]);
 
-        $generator = $this->provider->streamObject(
-            messages: $this->messages,
-            schema: $this->schema,
-            system: $effectiveSystem,
-            maxTokens: $this->maxTokens,
-            temperature: $this->temperature,
-            topP: $this->topP,
-            stopSequences: $this->stopSequences,
-        );
+        try {
+            // Build system message with schema context
+            $effectiveSystem = $this->buildEffectiveSystem();
 
-        $lastChunk = null;
+            $generator = $this->provider->streamObject(
+                messages: $this->messages,
+                schema: $this->schema,
+                system: $effectiveSystem,
+                maxTokens: $this->maxTokens,
+                temperature: $this->temperature,
+                topP: $this->topP,
+                stopSequences: $this->stopSequences,
+            );
 
-        foreach ($generator as $chunk) {
-            $this->invokeOnChunk($chunk);
-            $lastChunk = $chunk;
-            yield $chunk;
-        }
+            $lastChunk = null;
+            $chunkIndex = 0;
 
-        // Invoke onFinish with the final chunk
-        if ($lastChunk !== null && $lastChunk->isComplete) {
-            $this->invokeOnFinish($lastChunk);
+            foreach ($generator as $chunk) {
+                $this->dispatchStreamChunkReceived($chunk, $chunkIndex);
+                $this->invokeOnChunk($chunk);
+                $lastChunk = $chunk;
+                $chunkIndex++;
+                yield $chunk;
+            }
+
+            // Invoke onFinish with the final chunk
+            if ($lastChunk !== null && $lastChunk->isComplete) {
+                $this->invokeOnFinish($lastChunk);
+                $this->dispatchRequestCompleted($lastChunk, $startTime, $lastChunk->usage ?? null);
+            }
+        } catch (\Throwable $e) {
+            $this->dispatchErrorOccurred($e);
+            throw $e;
         }
     }
 

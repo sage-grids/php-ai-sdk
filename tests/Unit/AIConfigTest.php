@@ -6,6 +6,8 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\TestCase;
 use SageGrids\PhpAiSdk\AIConfig;
+use SageGrids\PhpAiSdk\Event\EventDispatcherInterface;
+use SageGrids\PhpAiSdk\Event\NullEventDispatcher;
 use SageGrids\PhpAiSdk\Provider\ProviderRegistry;
 use SageGrids\PhpAiSdk\Provider\TextProviderInterface;
 
@@ -95,11 +97,46 @@ final class AIConfigTest extends TestCase
         AIConfig::setTimeout(60);
         AIConfig::setMaxToolRoundtrips(10);
 
+        // Set a custom event dispatcher
+        $dispatcher = Mockery::mock(EventDispatcherInterface::class);
+        AIConfig::setEventDispatcher($dispatcher);
+
         AIConfig::reset();
 
         $this->assertNull(AIConfig::getProvider());
         $this->assertEquals([], AIConfig::getDefaults());
         $this->assertEquals(30, AIConfig::getTimeout());
         $this->assertEquals(5, AIConfig::getMaxToolRoundtrips());
+        // After reset, should return NullEventDispatcher
+        $this->assertInstanceOf(NullEventDispatcher::class, AIConfig::getEventDispatcher());
+    }
+
+    public function testGetEventDispatcherReturnsNullEventDispatcherByDefault(): void
+    {
+        $dispatcher = AIConfig::getEventDispatcher();
+
+        $this->assertInstanceOf(EventDispatcherInterface::class, $dispatcher);
+        $this->assertInstanceOf(NullEventDispatcher::class, $dispatcher);
+    }
+
+    public function testSetAndGetEventDispatcher(): void
+    {
+        $customDispatcher = Mockery::mock(EventDispatcherInterface::class);
+
+        AIConfig::setEventDispatcher($customDispatcher);
+
+        $this->assertSame($customDispatcher, AIConfig::getEventDispatcher());
+    }
+
+    public function testEventDispatcherIsResetOnReset(): void
+    {
+        $customDispatcher = Mockery::mock(EventDispatcherInterface::class);
+        AIConfig::setEventDispatcher($customDispatcher);
+
+        $this->assertSame($customDispatcher, AIConfig::getEventDispatcher());
+
+        AIConfig::reset();
+
+        $this->assertInstanceOf(NullEventDispatcher::class, AIConfig::getEventDispatcher());
     }
 }

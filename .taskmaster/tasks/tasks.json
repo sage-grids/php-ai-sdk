@@ -2,7 +2,7 @@
   "master": {
     "tasks": [
       {
-        "id": "1",
+        "id": 1,
         "title": "Project initialization and Composer setup",
         "description": "Set up the PHP Composer package structure, dependencies, autoloading, and development tooling",
         "details": "Create composer.json with package metadata (sage-grids/php-ai-sdk), namespace (SageGrids\\PhpAiSdk), PHP 8.1+ requirement, PSR-4 autoloading. Add required dependencies: guzzlehttp/guzzle ^7.0, psr/http-client ^1.0, psr/http-message ^1.0|^2.0, psr/event-dispatcher ^1.0. Add dev dependencies: phpunit/phpunit ^10.0, phpstan/phpstan ^1.10 (level 8), friendsofphp/php-cs-fixer ^3.0, mockery/mockery ^1.6. Configure PSR-4 autoloading for src/ and tests/ directories. Create phpstan.neon for level 8 strict analysis, phpunit.xml for test configuration with coverage settings, .php-cs-fixer.php for PSR-12 code style. Set up .gitignore for vendor/, .phpunit.cache/, .php-cs-fixer.cache. Initialize directory structure: src/, tests/Unit/, tests/Integration/, tests/Feature/.",
@@ -14,7 +14,7 @@
         "updatedAt": "2026-01-23T22:59:04.859Z"
       },
       {
-        "id": "2",
+        "id": 2,
         "title": "Core Message system implementation",
         "description": "Implement message types (SystemMessage, UserMessage, AssistantMessage, ToolMessage) and MessageCollection for conversation handling",
         "details": "Create src/Core/Message/ directory. Implement abstract Message base class with readonly properties: role (enum: system|user|assistant|tool), content (string), timestamp. Create SystemMessage, UserMessage, AssistantMessage, ToolMessage as final readonly classes extending Message. UserMessage should support multi-modal content (text + images as array). AssistantMessage should include optional toolCalls property. ToolMessage should include toolCallId and result. Implement MessageCollection class with methods: add(), toArray(), count(), getIterator() implementing IteratorAggregate. Add type-safe factory methods. Use PHP 8.1+ enum for MessageRole. Ensure all classes are immutable (readonly properties, no setters).",
@@ -28,7 +28,7 @@
         "updatedAt": "2026-01-23T23:08:18.833Z"
       },
       {
-        "id": "3",
+        "id": 3,
         "title": "Schema system with fluent API",
         "description": "Build the complete schema definition system supporting JSON Schema mapping, validation, and PHP class reflection",
         "details": "Create src/Core/Schema/ directory. Implement abstract Schema base class with abstract methods: toJsonSchema(): array, validate(mixed $value): ValidationResult. Create concrete schema types as final classes: StringSchema (with format, minLength, maxLength, pattern methods), NumberSchema/IntegerSchema (with minimum, maximum, multipleOf), BooleanSchema, ArraySchema (with items schema, minItems, maxItems), ObjectSchema (with properties array, required, additionalProperties), EnumSchema (with allowed values array), NullableSchema (wrapping another schema), UnionSchema (multiple schema options). Implement fluent chainable methods: description(string), default(mixed), optional(), required(). Add static factory methods on base Schema class: Schema::string(), Schema::number(), Schema::object(), etc. Implement Schema::fromClass(string $className) using ReflectionClass to analyze properties, type hints, and PHP 8 attributes (#[Description], #[Format], #[Minimum], #[Maximum], #[Optional], #[ArrayItems]). Use #[ArrayItems] to resolve typed arrays (e.g., array<int>) which native reflection cannot fully capture. Create SchemaValidator with validate() method returning ValidationResult with errors array. Support JSON Schema draft-07 format in toJsonSchema().",
@@ -42,7 +42,7 @@
         "updatedAt": "2026-01-23T23:12:13.796Z"
       },
       {
-        "id": "4",
+        "id": 4,
         "title": "HTTP client abstraction and streaming response handler",
         "description": "Implement HTTP client interface, Guzzle adapter, and SSE (Server-Sent Events) streaming response parser",
         "details": "Create src/Http/ directory. Define HttpClientInterface with methods: request(Request $request): Response, stream(Request $request): StreamingResponse. Create Request class with: method (GET/POST), uri (string), headers (array), body (string|resource|MultipartStream). Ensure support for multipart/form-data requests (essential for file uploads/transcription). Create Response class with: statusCode (int), headers (array), body (string), isSuccess(): bool. Implement GuzzleHttpClient implementing HttpClientInterface using Guzzle \\GuzzleHttp\\Client. Support timeout configuration, retry logic for transient errors (429, 502, 503, 504), exponential backoff. Disable auto-retries for streaming requests once the first byte is received to prevent data duplication or corruption. Create StreamingResponse class wrapping PSR-7 StreamInterface with events() generator method to parse SSE format: yield SSEEvent objects from 'data: {...}\\n\\n' chunks. Handle both JSON and plain text data lines. Implement proper buffer management for incomplete chunks. Support stream cancellation and cleanup. Add error handling for malformed SSE data.",
@@ -56,7 +56,7 @@
         "updatedAt": "2026-01-25T15:54:57.319Z"
       },
       {
-        "id": "5",
+        "id": 5,
         "title": "Provider interface and registry system",
         "description": "Define provider contracts (TextProviderInterface, ImageProviderInterface, etc.) and implement provider registration/resolution",
         "details": "Create src/Provider/ directory. Define ProviderInterface with methods: getName(): string, getCapabilities(): ProviderCapabilities, getAvailableModels(): array. Create capability flags in ProviderCapabilities readonly class: supportsTextGeneration, supportsStreaming, supportsStructuredOutput, supportsToolCalling, supportsImageGeneration, supportsSpeechGeneration, supportsTranscription, supportsEmbeddings, supportsVision (all booleans). Define TextProviderInterface extending ProviderInterface with methods: generateText(array $messages, ?string $system, ?int $maxTokens, ?float $temperature, ?float $topP, ?array $stopSequences, ?array $tools, string|Tool|null $toolChoice): TextResult, streamText(...): \\Generator<TextChunk>, generateObject(array $messages, Schema $schema, ...): ObjectResult, streamObject(...): \\Generator<ObjectChunk>. Similarly define ImageProviderInterface, SpeechProviderInterface, EmbeddingProviderInterface. Create ProviderRegistry singleton with methods: register(string $name, ProviderInterface $provider), get(string $name): ProviderInterface, has(string $name): bool, resolve(string $modelString): ProviderInterface (parses 'provider/model' format). Create ProviderConfig readonly class for provider-specific settings.",
@@ -72,7 +72,7 @@
         "updatedAt": "2026-01-25T21:16:52.934Z"
       },
       {
-        "id": "6",
+        "id": 6,
         "title": "Result classes and usage tracking",
         "description": "Implement result objects for all AI operations (TextResult, TextChunk, ObjectResult, etc.) with token usage tracking",
         "details": "Create src/Core/Result/ directory. Implement Usage readonly class with properties: promptTokens (int), completionTokens (int), totalTokens (int). (Exclude estimatedCost for v1 to avoid maintenance). Create TextResult readonly class with: text (string), finishReason (enum: stop|length|tool_calls|content_filter), usage (Usage), toolCalls (array<ToolCall>), rawResponse (array). Create TextChunk readonly class for streaming: text (string), isComplete (bool), delta (string). Create ObjectResult<T> generic readonly class: object (T), text (string), finishReason, usage, rawResponse. Create ObjectChunk<T> for streaming: delta (partial object), isComplete (bool). Create ImageResult with: url (?string), base64 (?string), revisedPrompt (?string), usage. Create SpeechResult with: audio (string binary), duration (?float), usage. Create TranscriptionResult with: text (string), duration (?float), segments (array), usage. Create EmbeddingResult with: embedding (array<float>), usage. Use readonly properties throughout. Implement FinishReason enum.",
@@ -86,7 +86,7 @@
         "updatedAt": "2026-01-26T09:09:50.025Z"
       },
       {
-        "id": "7",
+        "id": 7,
         "title": "Tool system with definition and execution",
         "description": "Implement Tool definition, ToolCall, ToolResult, ToolExecutor, and ToolRegistry for AI function calling",
         "details": "Create src/Core/Tool/ directory. Implement Tool final class with private constructor and static factory: Tool::create(string $name, string $description, Schema $parameters, ?callable $execute). Store name, description, parameters (Schema), execute (Closure). Add Tool::fromMethod(object $instance, string $method) using ReflectionMethod to extract name, description from #[Tool] attribute, parameters from type hints and #[Parameter] attributes, and bind method as execute callable. Implement execute(array $arguments): mixed method validating arguments against schema before calling handler. Add isExecutable(): bool and toProviderFormat(string $provider): array for OpenAI/Gemini/etc formats. Create ToolCall readonly class: id (string), name (string), arguments (array). Create ToolResult readonly class: toolCallId (string), result (mixed), error (?Throwable). Create ToolExecutor class with execute(Tool $tool, ToolCall $call): ToolResult handling validation and error catching. Create ToolRegistry for global tool registration and lookup. Implement #[Tool] and #[Parameter] attributes for method reflection.",
@@ -100,7 +100,7 @@
         "updatedAt": "2026-01-26T11:15:23.558Z"
       },
       {
-        "id": "8",
+        "id": 8,
         "title": "OpenAI provider implementation",
         "description": "Implement complete OpenAI provider supporting text generation, streaming, structured output, tool calling, and embeddings",
         "details": "Create src/Provider/OpenAI/ directory. Implement OpenAIProvider final class implementing TextProviderInterface, EmbeddingProviderInterface. Constructor accepts apiKey, ?HttpClientInterface $httpClient, ?OpenAIConfig $config. OpenAIConfig readonly class includes: baseUrl (default 'https://api.openai.com/v1'), organization (?string), project (?string), timeout (int, default 30). Implement generateText(): convert messages to OpenAI format [{role, content}], handle system message, send POST to /chat/completions with model, messages, max_tokens, temperature, top_p, stop, tools (if provided), tool_choice. Parse response to TextResult, extract usage, handle tool_calls if present. Implement streamText(): same but with stream=true, use StreamingResponse to parse SSE chunks, yield TextChunk for each delta, aggregate to final TextResult. Implement generateObject(): use response_format={type: 'json_object'} and include schema in system message for JSON mode, parse and validate against schema, return ObjectResult. Implement streamObject() similarly with streaming. Add embed() method for embeddings API. Support model strings: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo. Implement proper error handling mapping HTTP status codes to exceptions (401→AuthenticationException, 429→RateLimitException with retry_after). Handle tool call execution loop with maxToolRoundtrips parameter.",
@@ -116,7 +116,7 @@
         "updatedAt": "2026-01-26T15:05:05.238Z"
       },
       {
-        "id": "9",
+        "id": 9,
         "title": "Exception hierarchy and error handling",
         "description": "Implement complete exception hierarchy for provider errors, validation errors, and operational failures",
         "details": "Create src/Exception/ directory. Implement AIException as base exception class extending \\Exception. Create ProviderException extending AIException with additional properties: provider (string), model (?string), statusCode (?int), errorDetails (?array), requestId (?string). Create specific provider exceptions: AuthenticationException (401), RateLimitException (429) with retryAfterSeconds property, QuotaExceededException, ModelNotFoundException, ProviderUnavailableException (500-504). Create ValidationException with errors (array<ValidationError>) property. ValidationError readonly class: path (string), message (string), value (mixed). Create SchemaValidationException and InputValidationException extending ValidationException. Create ToolExecutionException with toolName, arguments, originalException. Create TimeoutException, StreamingException. All exceptions should include helpful error messages, preserve original exception context, and provide structured error details. Implement static factory methods for common error scenarios.",
@@ -130,7 +130,7 @@
         "updatedAt": "2026-01-26T16:23:29.561Z"
       },
       {
-        "id": "10",
+        "id": 10,
         "title": "AI facade and core generation functions",
         "description": "Implement the main AI static facade class with generateText, streamText, generateObject, and streamObject methods",
         "details": "Create src/AI.php as final class with private constructor (prevent instantiation). Implement static methods matching ai-sdk.dev API: generateText(array $options): TextResult, streamText(array $options): \\Generator<TextChunk>, generateObject(array $options): ObjectResult, streamObject(array $options): \\Generator<ObjectChunk>. Each method accepts $options array with keys: model (string 'provider/model' or ProviderInterface instance), prompt (?string), messages (?array<Message>), system (?string), maxTokens (?int), temperature (?float), topP (?float), stopSequences (?array), tools (?array<Tool>), toolChoice (?string|Tool), schema (for Object methods, Schema|class-string), schemaName (?string), schemaDescription (?string), onChunk (?callable), onFinish (?callable), maxToolRoundtrips (?int, default 5). Implement logic: parse model string via ProviderRegistry::resolve(), convert prompt to UserMessage if provided, merge with messages array, validate required parameters, call provider method, handle tool execution loop if tools provided and toolChoice allows, invoke callbacks if provided. For class-string schema, use Schema::fromClass(). Create src/Core/Functions/ directory with implementation classes: GenerateText, StreamText, GenerateObject, StreamObject that AI delegates to. Implement AIConfig static class with setProvider(), getProvider(), autoConfigureFromEnv(), setDefaults(), setTimeout(), etc. Store configuration in static properties with thread-safe access.",
@@ -209,7 +209,7 @@
         "updatedAt": "2026-01-26T17:37:26.766Z"
       },
       {
-        "id": "11",
+        "id": 11,
         "title": "Testing utilities and documentation",
         "description": "Implement FakeProvider for testing, create comprehensive README, API documentation, and usage examples",
         "details": "Create src/Testing/ directory. Implement FakeProvider final class implementing all provider interfaces with methods to queue responses: addResponse(string $operation, mixed $response), addStreamResponse(string $operation, array $chunks). Implement RecordedRequest class to capture requests. Add assertion methods: assertRequestMade(string $operation, ?callable $assertion), assertRequestCount(int $count). Create FakeResponse helper with static factory methods: text(string $text, ?Usage $usage), streamedText(array<string> $chunks), object(mixed $object, Schema $schema), image(string $url), etc. Implement AITestCase trait for PHPUnit with helper methods: fake(string $provider), assertAIGenerated(), etc. Create comprehensive README.md with sections: Installation (composer require), Quick Start (basic examples), Features (list capabilities), Usage (detailed examples for each function), Provider Setup (API key configuration), Testing (using FakeProvider), Contributing, License (MIT). Create docs/examples/ directory with copy-paste ready examples: basic-text.php, streaming.php, structured-output.php, tool-calling.php, multi-turn-conversation.php, class-based-schema.php, image-generation.php. Add inline documentation (docblocks) to all public APIs with @param, @return, @throws tags. Generate API documentation using phpDocumentor or similar.",
@@ -223,7 +223,7 @@
         "updatedAt": "2026-01-27T15:14:40.906Z"
       },
       {
-        "id": "12",
+        "id": 12,
         "title": "Google provider implementation",
         "description": "Implement Google Gemini provider (using Google namespace) with text generation, streaming, structured output, and tool calling support",
         "status": "done",
@@ -239,7 +239,7 @@
         "updatedAt": "2026-01-28T16:11:31.238Z"
       },
       {
-        "id": "13",
+        "id": 13,
         "title": "Event system with PSR-14 compatibility",
         "description": "Implement event dispatching system for request lifecycle, streaming, and tool execution events",
         "details": "Create src/Event/ directory. Define EventDispatcherInterface with dispatch(object $event): object method matching PSR-14. Implement NullEventDispatcher (no-op implementation). Create event classes in src/Event/Events/: RequestStarted (provider, model, operation, parameters, timestamp), RequestCompleted (provider, model, operation, result, duration, usage), StreamChunkReceived (provider, model, chunk, chunkIndex), ToolCallStarted (toolName, arguments), ToolCallCompleted (toolName, arguments, result, duration), ErrorOccurred (exception, provider, model, operation). All events as final readonly classes. Implement PSR14EventDispatcher adapter wrapping any PSR-14 compatible dispatcher (Symfony EventDispatcher, etc.). Add event dispatching to AI facade methods: dispatch RequestStarted before provider call, RequestCompleted after, StreamChunkReceived for each chunk, ToolCallStarted/Completed for tool execution, ErrorOccurred on exceptions. Add AIConfig::setEventDispatcher(EventDispatcherInterface $dispatcher) for configuration. Use NullEventDispatcher by default (zero overhead when not configured).",
@@ -253,7 +253,7 @@
         "updatedAt": "2026-01-28T16:58:54.398Z"
       },
       {
-        "id": "14",
+        "id": 14,
         "title": "OpenRouter and additional provider implementations",
         "description": "Implement OpenRouter provider for multi-model access and prepare provider expansion framework",
         "details": "Create src/Provider/OpenRouter/ directory. Implement OpenRouterProvider final class implementing TextProviderInterface. Constructor accepts apiKey. OpenRouter uses OpenAI-compatible API format at https://openrouter.ai/api/v1, so can extend/reuse OpenAI provider logic. Add site_url and app_name headers for OpenRouter tracking. Support model format: openrouter/{provider}/{model} like 'openrouter/anthropic/claude-3.5-sonnet'. Implement generateText() and streamText() similar to OpenAI with OpenRouter-specific headers. Parse OpenRouter's enhanced response metadata (native_tokens_prompt, native_tokens_completion). Handle OpenRouter-specific errors and rate limits. Create provider expansion framework: AbstractHttpProvider base class with common HTTP logic, request building, error handling, SSE parsing that OpenAI, Gemini, OpenRouter can extend. Extract common patterns like retry logic, timeout handling, token usage parsing, error mapping to base class. Design for easy addition of future providers (Anthropic, Cohere, Mistral) by extending AbstractHttpProvider and implementing provider-specific message formatting and response parsing.",
@@ -267,6 +267,233 @@
         "status": "done",
         "subtasks": [],
         "updatedAt": "2026-01-28T18:03:37.077Z"
+      },
+      {
+        "id": 15,
+        "title": "Implement comprehensive code review recommendations for production readiness",
+        "description": "Apply all code review recommendations from docs/code-review.md including critical security fixes (Google API key header-based auth, streaming duplicate chunk bug, strict_types), high priority improvements (model parameter overrides, unified exception hierarchy, streaming error recovery, tool return validation), medium priority architectural enhancements (option DTOs, message formatter extraction, middleware support, model registry, thread safety), and low priority improvements (schema caching, rate limiting, integration tests, fluent builder API, expanded documentation).",
+        "details": "This task encompasses the complete implementation of all 43 recommendations from the comprehensive code review. Implementation should be organized by priority level:\n\n## CRITICAL FIXES (Must complete first):\n\n1. **Google API Key Security (GoogleProvider.php:729)**: Move API key from URL query parameter to x-goog-api-key header in buildRequest() method. Remove ?key={$this->apiKey} from buildEndpoint(). This prevents API key exposure in logs, caches, and browser history.\n\n2. **Streaming Duplicate Chunks Bug (OpenAIProvider.php:200-204, GoogleProvider.php:199-201)**: Add $finalYielded flag to track whether final chunk was yielded inside the streaming loop. Only yield final chunk after loop if !$finalYielded to prevent duplicate final chunks when finish_reason is set.\n\n3. **Missing strict_types Declaration**: Add declare(strict_types=1); to ALL 89 PHP files missing it (currently only 34/123 files have it). Files include: ProviderInterface.php, TextProviderInterface.php, OpenAIProvider.php, GoogleProvider.php, OpenRouterProvider.php, Schema.php, Tool.php, ToolRegistry.php, GuzzleHttpClient.php, and many others in src/Core/, src/Provider/, src/Result/, src/Http/ directories.\n\n## HIGH PRIORITY IMPROVEMENTS:\n\n4. **Model Parameter Override (All Providers + TextProviderInterface.php)**: Add ?string $model parameter as first parameter to all provider methods (generateText, streamText, generateObject, streamObject). Update TextProviderInterface signature. In implementation, use $effectiveModel = $model ?? $this->config->defaultModel. Apply to OpenAIProvider, GoogleProvider, OpenRouterProvider.\n\n5. **Unified Exception Hierarchy (src/Provider/*/Exception/)**: Make provider-specific exceptions extend SDK-level exceptions. OpenAIException/GoogleException/OpenRouterException should extend ProviderException with provider name auto-injected in constructor. Ensure single catch path: try { AI::generateText([...]); } catch (ProviderException $e) works for all providers.\n\n6. **Streaming Error Recovery (GuzzleHttpClient.php:83-85)**: Implement connection-error-only retry logic in stream() method. Add isRetryableConnectionError() method to detect pre-data connection failures. Only retry if no data has been transmitted yet (safe to retry). Don't retry mid-stream as noted in comment.\n\n7. **Tool Return Validation (Tool.php:115-133)**: Add optional ?Schema $returnSchema parameter to Tool constructor. In execute() method, after calling handler, validate return value against returnSchema if provided. Throw ToolExecutionException with details if validation fails.\n\n## MEDIUM PRIORITY (Architecture):\n\n8. **Option DTOs (New: src/Core/Options/)**: Create TextGenerationOptions, ObjectGenerationOptions readonly classes with typed properties (model, prompt, messages, system, maxTokens, temperature, topP, stopSequences, tools, toolChoice, onChunk). Support both array and DTO in AI::generateText() by detecting type and converting array to DTO internally.\n\n9. **Message Formatter Strategy (New: src/Core/Message/Formatter/)**: Extract formatMessages() logic from OpenAIProvider.php:488-510, GoogleProvider.php:501-557 into MessageFormatterInterface with format(array $messages, ?string $system): array. Create OpenAIMessageFormatter, GeminiMessageFormatter implementations. Inject into providers via constructor.\n\n10. **Middleware Support (New: src/Http/Middleware/)**: Create MiddlewareInterface with handle(Request $request, callable $next): Response. Implement LoggingMiddleware, CachingMiddleware examples. Add addMiddleware() to providers. Build middleware pipeline in HTTP request flow.\n\n11. **Model Registry (New: src/Provider/ModelRegistry.php)**: Create ModelInfo readonly class with properties: id, provider, contextWindow, supportsVision, supportsTools, inputPricePerMToken, outputPricePerMToken. Build ModelRegistry with get(string $modelId): ModelInfo and supports(string $modelId, string $capability): bool. Pre-populate with common models (gpt-4o, claude-3.5-sonnet, gemini-1.5-pro).\n\n12. **Thread Safety Improvements (AIConfig.php, ProviderRegistry.php)**: Document thread safety concerns with current static state in docblocks. Add warnings about usage in async PHP/Swoole/ReactPHP environments. Consider adding AIContext class for future dependency injection pattern (implementation optional but design documented).\n\n13. **Readonly Consistency**: Convert ProviderCapabilities to final readonly class. Review all config classes (OpenAIConfig, GoogleConfig, OpenRouterConfig) and make them final readonly. Ensure consistent use of readonly properties in all value objects.\n\n14. **Magic Strings to Enums/Constants**: Create ToolChoice enum (Auto, None, Required) in src/Core/Tool/. Define EVENT_* constants in EventDispatcherInterface. Replace 'function', 'auto', 'none', 'required' string literals with enum/constant usage.\n\n## LOW PRIORITY:\n\n15. **Schema Caching (Schema.php:108-127)**: Add private static array $schemaCache = []; to Schema class. In fromClass(), check cache first, build and store if missing, return clone to prevent mutation.\n\n16. **Rate Limiting (New: src/Http/RateLimiter/)**: Create RateLimiterInterface, TokenBucketRateLimiter implementation. Add optional rateLimiter property to provider configs. Integrate into HTTP client request flow with pre-request check.\n\n17. **Integration Tests (tests/Integration/)**: Create OpenAIIntegrationTest, GoogleIntegrationTest, OpenRouterIntegrationTest with @group integration annotation and @requires env API_KEY. Test real API calls with small requests. Add CI skip logic if API keys not present.\n\n18. **Fluent Builder API (src/Builder/)**: Create TextGenerationBuilder, ObjectGenerationBuilder with fluent methods: model(), prompt(), temperature(), tools(), onChunk(). Add AI::text() returning builder. Maintain backward compatibility with array options.\n\n19. **Documentation Expansion**: Add CHANGELOG.md (Keep a Changelog format), UPGRADE.md for breaking changes, docs/ARCHITECTURE.md with component diagrams, expand README with multi-turn conversation examples, error handling patterns, streaming with error handling, testing with FakeProvider examples.\n\n## Files/Locations Reference:\n- Provider implementations: src/Provider/OpenAI/OpenAIProvider.php (729 lines), src/Provider/Google/GoogleProvider.php (783 lines), src/Provider/OpenRouter/OpenRouterProvider.php\n- Core functions: src/Core/Functions/GenerateText.php, StreamText.php, GenerateObject.php, StreamObject.php\n- Exception hierarchy: src/Exception/ (SDK-level), src/Provider/*/Exception/ (provider-specific)\n- HTTP layer: src/Http/GuzzleHttpClient.php, HttpClientInterface.php\n- Schema system: src/Core/Schema/Schema.php, SchemaValidator.php\n- Tool system: src/Core/Tool/Tool.php, ToolRegistry.php, ToolExecutor.php\n- Config: src/AIConfig.php (static state issues), src/Provider/ProviderRegistry.php (singleton)\n\n## Implementation Strategy:\n1. Complete all CRITICAL fixes first before moving to HIGH priority (security and correctness)\n2. HIGH priority items enable core functionality improvements\n3. MEDIUM priority items are architectural enhancements that improve maintainability\n4. LOW priority items add convenience features and improve developer experience\n5. Run full test suite after each priority level completion\n6. Update tests to match new interfaces (especially after adding model parameter)\n7. Ensure backward compatibility where possible (array options still work alongside DTOs)\n\n## Testing Requirements for Each:\n- Critical: Unit tests verifying header auth, no duplicate chunks, strict type enforcement\n- High: Update existing provider tests for model parameter, exception hierarchy catch tests, streaming retry tests, tool validation tests\n- Medium: Tests for DTO conversion, formatter implementations, middleware pipeline, model registry lookups\n- Low: Integration test suite with API key checks, builder API tests, cache hit/miss tests\n\nCurrent codebase status: 123 PHP files, 34 have strict_types, PSR-4 autoloading, Guzzle 7.0, PHP 8.1+, unit tests exist but no integration tests, comprehensive examples in README.",
+        "testStrategy": "**Comprehensive Testing Approach:**\n\n1. **Critical Fixes Verification:**\n   - Google Provider: Integration test confirming API key in x-goog-api-key header, not in URL. Mock HTTP client to verify request headers. Test against real API if key available.\n   - Streaming Chunks: Unit test with mock provider yielding multiple chunks with finish_reason set. Assert final chunk yielded exactly once. Test edge cases: finish_reason in last loop iteration, finish_reason never set, empty stream.\n   - Strict Types: Automated script to verify all 123 PHP files start with <?php\\ndeclare(strict_types=1); pattern. Run PHPStan level 8 to catch type violations.\n\n2. **High Priority Verification:**\n   - Model Parameter: Test OpenAIProvider->generateText($messages, model: 'gpt-4o-mini') overrides defaultModel. Test null model uses default. Apply to all provider methods.\n   - Exception Hierarchy: try/catch test catching ProviderException handles OpenAIException, GoogleException, OpenRouterException. Test exception provider property set correctly.\n   - Streaming Recovery: Unit test with mock HTTP client throwing ConnectException before data. Assert retry attempted. Test mid-stream failure throws without retry.\n   - Tool Validation: Create tool with returnSchema expecting {success: bool}. Test handler returning invalid type throws ToolExecutionException. Test valid return passes.\n\n3. **Medium Priority Verification:**\n   - DTOs: Test TextGenerationOptions construction with named args. Test AI::generateText() accepts both array and DTO, produces identical results. Test IDE autocomplete manually.\n   - Message Formatters: Test OpenAIMessageFormatter and GeminiMessageFormatter produce expected API format. Test system message handling differs correctly (OpenAI vs Gemini format).\n   - Middleware: Test LoggingMiddleware captures request/response. Test middleware chain executes in order. Test middleware can modify request/response.\n   - Model Registry: Test ModelRegistry::get('gpt-4o') returns correct ModelInfo. Test supports('gpt-4o', 'vision') returns true. Test unknown model throws.\n\n4. **Low Priority Verification:**\n   - Schema Cache: Test fromClass() called twice on same class hits cache (benchmark or reflection call count). Test cloning prevents mutation affecting cache.\n   - Rate Limiting: Test RateLimiter delays/rejects requests exceeding limit. Test tokens-per-minute calculation. Test reset after time window.\n   - Integration Tests: Run with @group integration. Test real OpenAI, Google, OpenRouter API calls. Verify response parsing. Test error handling with invalid keys.\n   - Fluent Builder: Test AI::text()->model('gpt-4o')->prompt('Hello')->generate() produces same result as array syntax. Test method chaining.\n\n5. **Regression Testing:**\n   - Run full existing test suite after each priority level\n   - Ensure backward compatibility: existing array-based API calls still work\n   - Test coverage should not decrease (currently unit tests exist, add integration tests)\n   - Performance regression: streaming should not have significant overhead from duplicate chunk fix\n\n6. **Documentation Verification:**\n   - All new public methods have PHPDoc with @param, @return, @throws\n   - README examples execute without errors\n   - Architecture docs match actual implementation\n   - CHANGELOG entries for all breaking changes\n\n7. **Static Analysis:**\n   - PHPStan level 8 passes on all files\n   - PHP-CS-Fixer with PSR-12 coding standard\n   - No PHPDoc/type hint mismatches\n\n8. **Manual Testing Checklist:**\n   - Test with real API keys for OpenAI, Google, OpenRouter\n   - Verify streaming displays progressively in terminal\n   - Test tool calling with multi-turn conversations\n   - Test structured output with complex schemas\n   - Monitor for memory leaks in long-running streaming",
+        "status": "pending",
+        "dependencies": [
+          5,
+          10,
+          12,
+          14
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Move Google API key from URL query parameter to x-goog-api-key header",
+            "description": "Update GoogleProvider.php to use x-goog-api-key header instead of query parameter for API authentication, preventing key exposure in logs and browser history",
+            "dependencies": [],
+            "details": "Modify src/Provider/Google/GoogleProvider.php:729 buildEndpoint() method to remove ?key={$this->apiKey} from the endpoint URL. Update buildRequest() method (or request()/stream() methods) to add API key as x-goog-api-key header instead. According to Google Gemini API documentation, the API key should be passed in the x-goog-api-key header for security. Test that all endpoints (generateContent, streamGenerateContent, etc.) work correctly with header-based authentication. Verify API key is not present in URL in any HTTP logs.",
+            "status": "pending",
+            "testStrategy": "Unit test to verify buildRequest() adds x-goog-api-key header and buildEndpoint() does not include ?key= parameter. Integration test with real Google API to confirm authentication works. Mock HttpClient test to verify request headers contain x-goog-api-key and URL does not contain key parameter."
+          },
+          {
+            "id": 2,
+            "title": "Fix duplicate final chunk bug in streaming responses",
+            "description": "Add $finalYielded flag to prevent duplicate final chunks when finish_reason is set in streaming responses across all providers",
+            "dependencies": [],
+            "details": "Update src/Provider/OpenAI/OpenAIProvider.php:200-204, src/Provider/Google/GoogleProvider.php:199-201, and src/Provider/OpenRouter/OpenRouterProvider.php streaming methods. Add boolean $finalYielded = false flag at start of streaming loop. Inside the loop, when yielding TextChunk::final() or ObjectChunk::final(), set $finalYielded = true. After the loop completes, only yield final chunk if !$finalYielded to prevent duplicate final chunks when finish_reason is set mid-stream. This ensures each stream has exactly one final chunk, not two when finish_reason appears in a streamed chunk.",
+            "status": "pending",
+            "testStrategy": "Unit tests with mock streaming responses that include finish_reason in the last streamed chunk. Verify only one final chunk is yielded, not two. Test cases: (1) finish_reason in last chunk, (2) finish_reason missing (yield after loop), (3) early termination with finish_reason mid-stream. Count chunks and verify single final chunk in all scenarios."
+          },
+          {
+            "id": 3,
+            "title": "Add declare(strict_types=1) to all PHP files missing it",
+            "description": "Add strict type declaration to all 89 PHP files in src/ directory that are currently missing it for type safety",
+            "dependencies": [],
+            "details": "Based on Grep results, only 49 of ~123 project files have declare(strict_types=1). Add declare(strict_types=1); as the second line (after <?php) to all files in src/ directory missing it. Priority files include: src/ProviderInterface.php, src/Provider/TextProviderInterface.php, src/Provider/OpenAI/OpenAIProvider.php (if missing), src/Provider/Google/GoogleProvider.php (if missing), src/Provider/OpenRouter/OpenRouterProvider.php, src/Core/Schema/Schema.php, src/Core/Tool/Tool.php, src/Core/Tool/ToolRegistry.php, src/Http/GuzzleHttpClient.php, and all other src/ files. Use Glob to find all src/**/*.php files, then check each for strict_types declaration. Ensure consistent formatting: <?php\\n\\ndeclare(strict_types=1);\\n\\nnamespace...",
+            "status": "pending",
+            "testStrategy": "Automated script to verify all src/**/*.php files contain declare(strict_types=1) on line 3. Run existing test suite to ensure no type-related errors are introduced. Use static analysis (PHPStan level 8+) to verify strict type checking passes."
+          },
+          {
+            "id": 4,
+            "title": "Add optional model parameter to all TextProviderInterface methods",
+            "description": "Update TextProviderInterface and all provider implementations to accept optional model parameter for per-request model override",
+            "dependencies": [
+              3
+            ],
+            "details": "Modify src/Provider/TextProviderInterface.php to add ?string $model = null as the first parameter to generateText(), streamText(), generateObject(), and streamObject() methods. Update all implementations: src/Provider/OpenAI/OpenAIProvider.php, src/Provider/Google/GoogleProvider.php, src/Provider/OpenRouter/OpenRouterProvider.php. In each implementation, use $effectiveModel = $model ?? $this->config->defaultModel to allow per-request override while falling back to configured default. Update all method calls in src/Core/Functions/ (GenerateText.php, StreamText.php, GenerateObject.php, StreamObject.php) to pass through model parameter from options array. Update method signatures: public function generateText(?string $model = null, array $messages, ?string $system = null, ...)",
+            "status": "pending",
+            "testStrategy": "Unit tests for each provider verifying: (1) model parameter overrides default, (2) null model uses config default, (3) model parameter passed correctly to API endpoint. Update existing provider tests to test both scenarios. Integration tests with different models specified per-request."
+          },
+          {
+            "id": 5,
+            "title": "Unify exception hierarchy - make provider exceptions extend SDK ProviderException",
+            "description": "Refactor provider-specific exceptions to extend SDK-level ProviderException for unified error handling",
+            "dependencies": [
+              3
+            ],
+            "details": "Currently src/Provider/OpenAI/Exception/OpenAIException.php extends RuntimeException, not src/Exception/ProviderException.php. Update OpenAIException, GoogleException, and OpenRouterException to extend ProviderException instead. Modify constructors to auto-inject provider name: OpenAIException constructor should call parent::__construct($message, 'openai', $model, $statusCode, ...). Update all provider-specific exception subclasses (AuthenticationException, RateLimitException, etc.) to pass provider name through parent. Update fromResponse() factory methods to maintain compatibility. This enables single catch path: try { AI::generateText([...]); } catch (ProviderException $e) { // handles all providers }. Ensure backward compatibility by keeping provider-specific exception classes.",
+            "status": "pending",
+            "testStrategy": "Unit tests verifying: (1) OpenAIException instanceof ProviderException, (2) provider name auto-populated, (3) catch (ProviderException $e) catches all provider exceptions, (4) specific provider exceptions still catchable, (5) existing error handling code continues to work. Test exception hierarchy with multi-provider scenarios."
+          },
+          {
+            "id": 6,
+            "title": "Add connection error recovery for streaming requests before data starts",
+            "description": "Implement retry logic for pre-data connection failures in streaming HTTP client",
+            "dependencies": [
+              3
+            ],
+            "details": "In src/Http/GuzzleHttpClient.php:83-85, add connection-error-only retry logic to stream() method. Create private method isRetryableConnectionError(RequestException $e): bool that returns true only for connection errors (ConnectException, timeout before data transfer) and false if any response data received. Add retry logic: if (isRetryableConnectionError($e) && $retryCount < $maxRetries), retry the stream request. Do NOT retry mid-stream as noted in existing comment - only retry if no data has been transmitted yet (safe to retry). Use exponential backoff for retries. Document in docblock that retries only occur for pre-data connection failures.",
+            "status": "pending",
+            "testStrategy": "Unit tests with mock Guzzle client: (1) connection failure before data -> retries, (2) error after data received -> throws immediately, (3) max retries exceeded -> throws, (4) successful retry -> returns stream. Integration test with flaky network conditions. Verify no data duplication in retry scenarios."
+          },
+          {
+            "id": 7,
+            "title": "Add optional return schema validation to Tool class",
+            "description": "Add returnSchema parameter to Tool class for validating tool execution return values",
+            "dependencies": [
+              3
+            ],
+            "details": "In src/Core/Tool/Tool.php, add optional ?Schema $returnSchema = null parameter to constructor. Store as readonly property. In execute() method (currently at line 115-133), after calling $handler($arguments) at line 132, add validation: if ($this->returnSchema !== null) { $validation = $this->returnSchema->validate($result); if (!$validation->isValid) { throw new ToolExecutionException(\"Tool '{$this->name}' return value validation failed: \" . implode(', ', $validation->errors)); } }. Return $result after validation. Update Tool::define() static factory to accept returnSchema parameter.",
+            "status": "pending",
+            "testStrategy": "Unit tests: (1) tool with valid return schema passes, (2) tool with invalid return throws ToolExecutionException, (3) tool without return schema skips validation, (4) validation error messages are descriptive. Test with various Schema types (object, array, primitive). Verify exception includes tool name and validation errors."
+          },
+          {
+            "id": 8,
+            "title": "Create option DTOs with backwards-compatible array support",
+            "description": "Create TextGenerationOptions and ObjectGenerationOptions readonly classes with typed properties, maintaining array backwards compatibility",
+            "dependencies": [
+              3,
+              4
+            ],
+            "details": "Create src/Core/Options/TextGenerationOptions.php and ObjectGenerationOptions.php as final readonly classes with typed properties: ?string $model, ?string $prompt, ?array $messages, ?string $system, ?int $maxTokens, ?float $temperature, ?float $topP, ?array $stopSequences, ?array $tools, string|Tool|null $toolChoice, ?callable $onChunk. Add static fromArray(array $options): self factory method. Update src/Core/Functions/GenerateText.php, StreamText.php, GenerateObject.php, StreamObject.php to accept array|TextGenerationOptions|ObjectGenerationOptions. Add type detection: if (is_array($options)) { $options = TextGenerationOptions::fromArray($options); }. Convert DTO to provider method arguments. Maintain full backwards compatibility - all existing array-based code continues to work.",
+            "status": "pending",
+            "testStrategy": "Unit tests: (1) DTO construction with typed properties, (2) fromArray() factory correctly maps all fields, (3) existing array-based generation code works unchanged, (4) DTO-based generation code works, (5) type safety enforced for DTO properties. Integration tests with both array and DTO patterns."
+          },
+          {
+            "id": 9,
+            "title": "Extract message formatters into MessageFormatterInterface strategy",
+            "description": "Extract provider-specific message formatting logic into strategy pattern with MessageFormatterInterface implementations",
+            "dependencies": [
+              3
+            ],
+            "details": "Create src/Core/Message/Formatter/MessageFormatterInterface.php with method: format(array $messages, ?string $system): array. Extract formatting logic from src/Provider/OpenAI/OpenAIProvider.php:488-510 into src/Core/Message/Formatter/OpenAIMessageFormatter.php. Extract from src/Provider/Google/GoogleProvider.php:501-557 into GeminiMessageFormatter.php. Each formatter handles provider-specific message structure (OpenAI: [{role, content}], Gemini: {contents: [], systemInstruction: {}}). Inject formatter into providers via constructor with default: public function __construct(string $apiKey, ?HttpClientInterface $httpClient = null, ?OpenAIConfig $config = null, ?MessageFormatterInterface $formatter = null) { $this->formatter = $formatter ?? new OpenAIMessageFormatter(); }. Replace inline formatting with $this->formatter->format($messages, $system).",
+            "status": "pending",
+            "testStrategy": "Unit tests for each formatter: (1) correct provider-specific format, (2) system message handling, (3) multi-turn conversations, (4) tool messages, (5) image content. Provider tests with custom formatter injection. Ensure no behavioral changes - existing message formatting output identical."
+          },
+          {
+            "id": 10,
+            "title": "Add middleware/pipeline support for request/response interception",
+            "description": "Create middleware interface and pipeline implementation for HTTP request/response interception with example implementations",
+            "dependencies": [
+              3
+            ],
+            "details": "Create src/Http/Middleware/MiddlewareInterface.php with method: handle(Request $request, callable $next): Response. Implement example middleware: src/Http/Middleware/LoggingMiddleware.php (logs request/response), src/Http/Middleware/CachingMiddleware.php (caches responses by request hash). Add protected array $middleware = [] to provider base classes. Add public function addMiddleware(MiddlewareInterface $middleware): self method. In provider request flow, build middleware pipeline: $handler = fn($req) => $this->httpClient->request($req); foreach (array_reverse($this->middleware) as $mw) { $handler = fn($req) => $mw->handle($req, $handler); }. Execute: $response = $handler($request). Support middleware chaining with $next() callable.",
+            "status": "pending",
+            "testStrategy": "Unit tests: (1) middleware execution order, (2) $next() callable invokes next middleware, (3) LoggingMiddleware logs requests, (4) CachingMiddleware returns cached responses, (5) multiple middleware chain correctly. Integration tests with middleware stack. Verify no performance impact when middleware not used."
+          },
+          {
+            "id": 11,
+            "title": "Create ModelRegistry with ModelInfo for model metadata",
+            "description": "Implement ModelRegistry with ModelInfo readonly class for model capabilities and pricing metadata",
+            "dependencies": [
+              3
+            ],
+            "details": "Create src/Provider/ModelInfo.php as final readonly class with properties: string $id, string $provider, int $contextWindow, bool $supportsVision, bool $supportsTools, float $inputPricePerMToken, float $outputPricePerMToken. Create src/Provider/ModelRegistry.php with methods: get(string $modelId): ModelInfo, supports(string $modelId, string $capability): bool, all(): array, register(ModelInfo $info): void. Pre-populate with common models: gpt-4o (128k context, vision, tools, OpenAI pricing), claude-3-5-sonnet-20241022 (200k context, vision, tools, Anthropic pricing), gemini-1.5-pro (2M context, vision, tools, Google pricing), llama-3.1-70b-versatile (128k context, Groq pricing). Support capability checks: $registry->supports('gpt-4o', 'vision') // true. Use singleton pattern or static methods.",
+            "status": "pending",
+            "testStrategy": "Unit tests: (1) get() returns ModelInfo for known models, (2) supports() checks capabilities correctly, (3) register() adds custom models, (4) all() returns all registered models, (5) get() throws for unknown models. Test pre-populated model data accuracy. Integration tests verifying capability checks against real provider capabilities."
+          },
+          {
+            "id": 12,
+            "title": "Improve thread safety with AIContext class design",
+            "description": "Document thread safety concerns and design AIContext class for future dependency injection pattern",
+            "dependencies": [
+              3
+            ],
+            "details": "Add docblock warnings to src/AIConfig.php and src/Provider/ProviderRegistry.php about thread safety issues with current static state in async PHP environments (Swoole, ReactPHP, Amp). Document: '@warning This class uses static state which is not thread-safe in async PHP environments. For concurrent request handling, consider using AIContext with dependency injection instead.' Design (but don't fully implement) src/AIContext.php class with instance-based provider registry and config: class AIContext { private ProviderRegistry $registry; private AIConfig $config; public function __construct() { $this->registry = new ProviderRegistry(); $this->config = new AIConfig(); } public function provider(string $name): ProviderInterface { return $this->registry->get($name); } }. Add example usage in docblocks showing DI pattern for async environments.",
+            "status": "pending",
+            "testStrategy": "Documentation review: verify warnings present in static classes. Code review: verify AIContext class design is sound for future implementation. Unit tests for AIContext class if implemented. No behavioral changes to existing code - purely additive design work."
+          },
+          {
+            "id": 13,
+            "title": "Make readonly usage consistent across all value objects and configs",
+            "description": "Ensure all config classes and value objects use final readonly pattern consistently",
+            "dependencies": [
+              3
+            ],
+            "details": "Audit all config and value object classes. Convert src/Provider/ProviderCapabilities.php to final readonly class. Review src/Provider/OpenAI/OpenAIConfig.php, src/Provider/Google/GoogleConfig.php, src/Provider/OpenRouter/OpenRouterConfig.php - ensure all are final readonly. Check src/Result/* classes (TextResult, ObjectResult, TextChunk, ObjectChunk) - ensure readonly properties. Check src/Core/Message/* classes (Message, UserMessage, AssistantMessage, etc.) - ensure final readonly. Add final keyword to class declarations, readonly to properties. Remove any setters. Ensure immutability for all value objects. Update constructors to use readonly property promotion where applicable: public function __construct(public readonly string $property).",
+            "status": "pending",
+            "testStrategy": "Static analysis: verify all config/value object classes are final and/or readonly. Unit tests attempting mutation should fail. Test suite should pass with no behavioral changes. Use reflection tests to verify readonly properties cannot be modified."
+          },
+          {
+            "id": 14,
+            "title": "Replace magic strings with enums and constants",
+            "description": "Create ToolChoice enum and event constants, replacing string literals throughout codebase",
+            "dependencies": [
+              3
+            ],
+            "details": "Create src/Core/Tool/ToolChoice.php as enum ToolChoice: string { case Auto = 'auto'; case None = 'none'; case Required = 'required'; }. Create src/Event/EventType.php with constants: const REQUEST_STARTED = 'request.started', const REQUEST_COMPLETED = 'request.completed', const STREAM_CHUNK_RECEIVED = 'stream.chunk.received', etc. Replace all occurrences of 'auto', 'none', 'required' string literals with ToolChoice enum usage. Update TextProviderInterface signature: string|Tool|null $toolChoice becomes ToolChoice|Tool|null $toolChoice. Replace event name strings in EventDispatcher implementations with EventType constants. Maintain backwards compatibility by accepting string|ToolChoice and converting to enum internally if needed.",
+            "status": "pending",
+            "testStrategy": "Unit tests: (1) ToolChoice enum values match expected strings, (2) enum usage in provider methods, (3) backwards compatibility with string values, (4) event constants used throughout. Run full test suite to verify no regressions. Static analysis to verify no hardcoded 'auto'/'none'/'required' strings remain."
+          },
+          {
+            "id": 15,
+            "title": "Add schema caching for reflection-based Schema::fromClass()",
+            "description": "Implement static schema cache to avoid expensive reflection operations for repeated Schema::fromClass() calls",
+            "dependencies": [
+              3
+            ],
+            "details": "In src/Core/Schema/Schema.php:108-127, add private static array $schemaCache = []; at class level. In fromClass(string $className): ObjectSchema method, check cache first: if (isset(self::$schemaCache[$className])) { return clone self::$schemaCache[$className]; }. After building schema (line 118), store in cache: self::$schemaCache[$className] = $schema. Return clone to prevent mutation of cached instance: return clone $schema. Add public static function clearCache(): void method for testing. Consider cache invalidation strategy - static cache persists for request lifetime, which is appropriate for immutable class schemas. Document caching behavior in docblock.",
+            "status": "pending",
+            "testStrategy": "Unit tests: (1) first fromClass() call performs reflection, (2) second call returns cached schema, (3) cache returns clone not original, (4) mutations to returned schema don't affect cache, (5) clearCache() works. Performance test: measure reflection time reduction for repeated calls. Verify cache memory usage reasonable for typical application."
+          },
+          {
+            "id": 16,
+            "title": "Add client-side rate limiting with RateLimiterInterface",
+            "description": "Implement client-side rate limiting to prevent exceeding provider API rate limits",
+            "dependencies": [
+              3
+            ],
+            "details": "Create src/Http/RateLimiter/RateLimiterInterface.php with methods: attempt(string $key): bool, remaining(string $key): int. Implement src/Http/RateLimiter/TokenBucketRateLimiter.php with configurable tokens per second and burst size. Add optional ?RateLimiterInterface $rateLimiter property to OpenAIConfig, GoogleConfig, OpenRouterConfig. In provider request flow (before HTTP call), check rate limiter: if ($this->rateLimiter !== null && !$this->rateLimiter->attempt($this->getRateLimitKey())) { throw new RateLimitException('Client-side rate limit exceeded', $this->getProviderName()); }. Implement getRateLimitKey() to use provider + model combination. Support per-provider, per-model rate limiting.",
+            "status": "pending",
+            "testStrategy": "Unit tests: (1) TokenBucketRateLimiter allows requests under limit, (2) blocks requests over limit, (3) refills tokens over time, (4) provider integration respects rate limits, (5) RateLimitException thrown when limit exceeded. Integration tests with high request volume. Verify rate limiting doesn't affect normal usage."
+          },
+          {
+            "id": 17,
+            "title": "Add integration tests against real APIs with @group integration",
+            "description": "Create integration test suite for testing against real provider APIs with conditional execution",
+            "dependencies": [
+              3
+            ],
+            "details": "Create tests/Integration/ directory. Implement OpenAIIntegrationTest.php, GoogleIntegrationTest.php, OpenRouterIntegrationTest.php extending PHPUnit\\Framework\\TestCase. Add @group integration annotation to all integration tests. Add @requires env OPENAI_API_KEY (etc.) annotation to conditionally skip tests if API keys not present. Test real API calls: basic text generation, streaming, structured output, tool calling, error handling (invalid model, rate limits). Use small requests to minimize API costs (maxTokens: 50, simple prompts). Add tests/Integration/README.md documenting how to run integration tests and set API keys. Update phpunit.xml to exclude integration group by default: <exclude><group>integration</group></exclude>. Add composer script: test:integration.",
+            "status": "pending",
+            "testStrategy": "Run integration tests with real API keys to verify actual provider behavior. Tests should: (1) skip gracefully if API keys missing, (2) make minimal API calls, (3) assert on response structure and content, (4) handle rate limits gracefully, (5) test error scenarios. CI configuration to run integration tests only if API keys available (secret env vars)."
+          },
+          {
+            "id": 18,
+            "title": "Add fluent builder API for text and object generation",
+            "description": "Create fluent builder classes for improved developer experience while maintaining backwards compatibility",
+            "dependencies": [
+              3,
+              4,
+              8
+            ],
+            "details": "Create src/Builder/TextGenerationBuilder.php with fluent methods: model(string $model): self, prompt(string $prompt): self, messages(array $messages): self, system(string $system): self, temperature(float $temp): self, maxTokens(int $max): self, tools(array $tools): self, onChunk(callable $callback): self, generate(): TextResult, stream(): Generator. Implement similar src/Builder/ObjectGenerationBuilder.php with schema(Schema $schema): self method. Add static factory method to src/AI.php: public static function text(?string $provider = null): TextGenerationBuilder and public static function object(?string $provider = null): ObjectGenerationBuilder. Builder internally uses option DTOs. Usage: AI::text()->model('gpt-4o')->prompt('Hello')->temperature(0.7)->generate(). Maintain full backwards compatibility with array-based AI::generateText().",
+            "status": "pending",
+            "testStrategy": "Unit tests: (1) fluent method chaining, (2) builder generates correct options, (3) generate() produces TextResult, (4) stream() produces Generator<TextChunk>, (5) all builder methods work. Integration tests with various builder configurations. Verify backwards compatibility - array-based API unchanged. Documentation examples showing builder pattern."
+          },
+          {
+            "id": 19,
+            "title": "Expand documentation with CHANGELOG, UPGRADE, ARCHITECTURE, and examples",
+            "description": "Create comprehensive documentation files for versioning, migration, architecture, and expanded usage examples",
+            "dependencies": [
+              3,
+              4,
+              5,
+              8,
+              18
+            ],
+            "details": "Create CHANGELOG.md following Keep a Changelog format (https://keepachangelog.com/) with sections: Unreleased, version releases with Added/Changed/Deprecated/Removed/Fixed/Security. Create UPGRADE.md documenting breaking changes: model parameter addition (backwards compatible but signature changed), exception hierarchy unification (catch ProviderException instead of specific), strict_types addition (may expose type bugs), builder API introduction. Create docs/ARCHITECTURE.md with: system overview diagram, component responsibilities (Core, Provider, HTTP, Event layers), message flow diagrams, provider implementation guide, extension points (custom providers, middleware, formatters). Expand README.md with: multi-turn conversation examples (chat history management), error handling patterns (try-catch with ProviderException), streaming with error handling (generator try-catch), testing with FakeProvider examples (mock responses for tests). Add code examples for all new features (DTOs, builders, middleware).",
+            "status": "pending",
+            "testStrategy": "Documentation review: verify accuracy, completeness, clarity. Test all code examples in documentation to ensure they execute correctly. Verify CHANGELOG follows Keep a Changelog format. Review UPGRADE guide for completeness of breaking changes. Validate ARCHITECTURE diagrams match actual codebase structure."
+          }
+        ]
       }
     ],
     "metadata": {
@@ -276,7 +503,10 @@
       "completedCount": 14,
       "tags": [
         "master"
-      ]
+      ],
+      "created": "2026-01-28T22:06:17.660Z",
+      "description": "Tasks for master context",
+      "updated": "2026-01-28T22:08:07.038Z"
     }
   }
 }

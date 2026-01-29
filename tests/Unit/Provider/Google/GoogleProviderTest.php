@@ -94,7 +94,9 @@ final class GoogleProviderTest extends TestCase
             ->withArgs(function (Request $request) {
                 $this->assertEquals('POST', $request->method);
                 $this->assertStringContainsString('/v1beta/models/gemini-1.5-flash:generateContent', $request->uri);
-                $this->assertStringContainsString('key=test-api-key', $request->uri);
+                $this->assertStringNotContainsString('key=', $request->uri);
+                $this->assertArrayHasKey('x-goog-api-key', $request->headers);
+                $this->assertEquals('test-api-key', $request->headers['x-goog-api-key']);
 
                 $body = json_decode($request->body, true);
                 $this->assertArrayHasKey('contents', $body);

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SageGrids\PhpAiSdk\Provider;
 
 use Generator;

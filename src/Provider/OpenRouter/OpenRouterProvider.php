@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SageGrids\PhpAiSdk\Provider\OpenRouter;
 
 use Generator;
@@ -147,6 +149,7 @@ final class OpenRouterProvider implements TextProviderInterface
         $finishReason = null;
         $usage = null;
         $isFirst = true;
+        $finalYielded = false;
 
         foreach ($streamingResponse->events() as $event) {
             $data = $event->data;
@@ -185,6 +188,7 @@ final class OpenRouterProvider implements TextProviderInterface
                     $isFirst = false;
                 } elseif ($finishReason !== null) {
                     yield TextChunk::final($accumulatedText, $content, $finishReason, $usage);
+                    $finalYielded = true;
                 } else {
                     yield TextChunk::continue($accumulatedText, $content);
                 }
@@ -192,7 +196,7 @@ final class OpenRouterProvider implements TextProviderInterface
         }
 
         // Ensure we yield a final chunk if we haven't already
-        if ($finishReason !== null && !$isFirst) {
+        if (!$finalYielded && $finishReason !== null && !$isFirst) {
             yield TextChunk::final($accumulatedText, '', $finishReason, $usage);
         }
     }
@@ -312,6 +316,7 @@ final class OpenRouterProvider implements TextProviderInterface
         $accumulatedJson = '';
         $finishReason = null;
         $usage = null;
+        $finalYielded = false;
 
         foreach ($streamingResponse->events() as $event) {
             $data = $event->data;
@@ -359,6 +364,7 @@ final class OpenRouterProvider implements TextProviderInterface
                             );
                         }
                         yield ObjectChunk::final($partialObject, $accumulatedJson, $finishReason, $usage);
+                        $finalYielded = true;
                     } else {
                         throw new OpenRouterException(
                             'Failed to parse JSON response: ' . json_last_error_msg(),
@@ -374,7 +380,7 @@ final class OpenRouterProvider implements TextProviderInterface
         }
 
         // Ensure final chunk is yielded if not already
-        if ($finishReason !== null) {
+        if (!$finalYielded && $finishReason !== null) {
             $finalObject = json_decode($accumulatedJson, true);
             if (json_last_error() === JSON_ERROR_NONE) {
                 yield ObjectChunk::final($finalObject, $accumulatedJson, $finishReason, $usage);

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SageGrids\PhpAiSdk\Provider\Google;
 
 use Generator;
@@ -131,7 +133,7 @@ final class GoogleProvider implements TextProviderInterface
 
         $endpoint = $this->buildEndpoint(':streamGenerateContent');
         // Add alt=sse for Server-Sent Events format
-        $endpoint .= '&alt=sse';
+        $endpoint .= '?alt=sse';
 
         $request = $this->buildRequest('POST', $endpoint, $requestBody);
         $streamingResponse = $this->httpClient->stream($request);
@@ -140,6 +142,7 @@ final class GoogleProvider implements TextProviderInterface
         $finishReason = null;
         $usage = null;
         $isFirst = true;
+        $finalYielded = false;
 
         foreach ($streamingResponse->events() as $event) {
             $data = $event->data;
@@ -189,6 +192,7 @@ final class GoogleProvider implements TextProviderInterface
                     $isFirst = false;
                 } elseif ($finishReason !== null) {
                     yield TextChunk::final($accumulatedText, $delta, $finishReason, $usage);
+                    $finalYielded = true;
                 } else {
                     yield TextChunk::continue($accumulatedText, $delta);
                 }
@@ -196,7 +200,7 @@ final class GoogleProvider implements TextProviderInterface
         }
 
         // Ensure we yield a final chunk if we haven't already
-        if ($finishReason !== null && !$isFirst) {
+        if (!$finalYielded && $finishReason !== null && !$isFirst) {
             yield TextChunk::final($accumulatedText, '', $finishReason, $usage);
         }
     }
@@ -328,7 +332,7 @@ final class GoogleProvider implements TextProviderInterface
         );
 
         $endpoint = $this->buildEndpoint(':streamGenerateContent');
-        $endpoint .= '&alt=sse';
+        $endpoint .= '?alt=sse';
 
         $request = $this->buildRequest('POST', $endpoint, $requestBody);
         $streamingResponse = $this->httpClient->stream($request);
@@ -336,6 +340,7 @@ final class GoogleProvider implements TextProviderInterface
         $accumulatedJson = '';
         $finishReason = null;
         $usage = null;
+        $finalYielded = false;
 
         foreach ($streamingResponse->events() as $event) {
             $data = $event->data;
@@ -394,6 +399,7 @@ final class GoogleProvider implements TextProviderInterface
                             );
                         }
                         yield ObjectChunk::final($partialObject, $accumulatedJson, $finishReason, $usage);
+                        $finalYielded = true;
                     } else {
                         throw new GoogleException(
                             'Failed to parse JSON response: ' . json_last_error_msg(),
@@ -409,7 +415,7 @@ final class GoogleProvider implements TextProviderInterface
         }
 
         // Ensure final chunk is yielded if not already
-        if ($finishReason !== null) {
+        if (!$finalYielded && $finishReason !== null) {
             $finalObject = json_decode($accumulatedJson, true);
             if (json_last_error() === JSON_ERROR_NONE) {
                 yield ObjectChunk::final($finalObject, $accumulatedJson, $finishReason, $usage);
@@ -726,7 +732,7 @@ final class GoogleProvider implements TextProviderInterface
     private function buildEndpoint(string $action): string
     {
         $model = $this->config->defaultModel;
-        return "/v1beta/models/{$model}{$action}?key={$this->apiKey}";
+        return "/v1beta/models/{$model}{$action}";
     }
 
     /**
@@ -767,6 +773,7 @@ final class GoogleProvider implements TextProviderInterface
     {
         $headers = [
             'Content-Type' => 'application/json',
+            'x-goog-api-key' => $this->apiKey,
         ];
 
         $url = rtrim($this->config->baseUrl, '/') . $endpoint;

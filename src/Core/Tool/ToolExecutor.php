@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SageGrids\PhpAiSdk\Core\Tool;
 
 use SageGrids\PhpAiSdk\Result\ToolCall;

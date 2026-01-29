@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SageGrids\PhpAiSdk\Provider\OpenAI;
 
 use Generator;
@@ -153,6 +155,7 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
         $finishReason = null;
         $usage = null;
         $isFirst = true;
+        $finalYielded = false;
 
         foreach ($streamingResponse->events() as $event) {
             $data = $event->data;
@@ -191,6 +194,7 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
                     $isFirst = false;
                 } elseif ($finishReason !== null) {
                     yield TextChunk::final($accumulatedText, $content, $finishReason, $usage);
+                    $finalYielded = true;
                 } else {
                     yield TextChunk::continue($accumulatedText, $content);
                 }
@@ -198,7 +202,7 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
         }
 
         // Ensure we yield a final chunk if we haven't already
-        if ($finishReason !== null && !$isFirst) {
+        if (!$finalYielded && $finishReason !== null && !$isFirst) {
             yield TextChunk::final($accumulatedText, '', $finishReason, $usage);
         }
     }
@@ -312,6 +316,7 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
         $accumulatedJson = '';
         $finishReason = null;
         $usage = null;
+        $finalYielded = false;
 
         foreach ($streamingResponse->events() as $event) {
             $data = $event->data;
@@ -359,6 +364,7 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
                             );
                         }
                         yield ObjectChunk::final($partialObject, $accumulatedJson, $finishReason, $usage);
+                        $finalYielded = true;
                     } else {
                         throw new OpenAIException(
                             'Failed to parse JSON response: ' . json_last_error_msg(),
@@ -374,7 +380,7 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
         }
 
         // Ensure final chunk is yielded if not already
-        if ($finishReason !== null) {
+        if (!$finalYielded && $finishReason !== null) {
             $finalObject = json_decode($accumulatedJson, true);
             if (json_last_error() === JSON_ERROR_NONE) {
                 yield ObjectChunk::final($finalObject, $accumulatedJson, $finishReason, $usage);

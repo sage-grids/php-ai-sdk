@@ -208,6 +208,82 @@ final class ResultTest extends TestCase
         $this->assertTrue($truncated->isTruncated());
     }
 
+    public function testTextResultWithAccumulatedUsage(): void
+    {
+        $usage1 = new Usage(100, 50, 150);
+        $usage2 = new Usage(200, 30, 230);
+        $currentUsage = new Usage(80, 20, 100);
+
+        $result = new TextResult(
+            text: 'Hello',
+            finishReason: FinishReason::Stop,
+            usage: $currentUsage,
+        );
+
+        $newResult = $result->withAccumulatedUsage([$usage1, $usage2]);
+
+        // Accumulated usage should include current usage + passed usage
+        $this->assertNotNull($newResult->usage);
+        $this->assertEquals(380, $newResult->usage->promptTokens); // 100 + 200 + 80
+        $this->assertEquals(100, $newResult->usage->completionTokens); // 50 + 30 + 20
+        $this->assertEquals(480, $newResult->usage->totalTokens); // 150 + 230 + 100
+
+        // Should have roundtrip usage array
+        $this->assertCount(3, $newResult->roundtripUsage);
+        $this->assertSame($usage1, $newResult->roundtripUsage[0]);
+        $this->assertSame($usage2, $newResult->roundtripUsage[1]);
+        $this->assertSame($currentUsage, $newResult->roundtripUsage[2]);
+
+        // Original result should be unchanged
+        $this->assertSame($currentUsage, $result->usage);
+        $this->assertEmpty($result->roundtripUsage);
+    }
+
+    public function testTextResultWithAccumulatedUsageNoCurrentUsage(): void
+    {
+        $usage1 = new Usage(100, 50, 150);
+        $usage2 = new Usage(200, 30, 230);
+
+        $result = new TextResult(
+            text: 'Hello',
+            finishReason: FinishReason::Stop,
+            usage: null,
+        );
+
+        $newResult = $result->withAccumulatedUsage([$usage1, $usage2]);
+
+        // Accumulated usage should only include passed usage
+        $this->assertNotNull($newResult->usage);
+        $this->assertEquals(300, $newResult->usage->promptTokens);
+        $this->assertEquals(80, $newResult->usage->completionTokens);
+        $this->assertEquals(380, $newResult->usage->totalTokens);
+
+        // Should have roundtrip usage array
+        $this->assertCount(2, $newResult->roundtripUsage);
+    }
+
+    public function testTextResultWithAccumulatedUsageEmptyArray(): void
+    {
+        $currentUsage = new Usage(100, 50, 150);
+        $result = new TextResult(
+            text: 'Hello',
+            finishReason: FinishReason::Stop,
+            usage: $currentUsage,
+        );
+
+        $newResult = $result->withAccumulatedUsage([]);
+
+        // Should return same instance when no roundtrip usage
+        $this->assertSame($result, $newResult);
+    }
+
+    public function testTextResultRoundtripUsageDefaultsToEmpty(): void
+    {
+        $result = new TextResult(text: 'Hello');
+
+        $this->assertEmpty($result->roundtripUsage);
+    }
+
     // ========== TextChunk Tests ==========
 
     public function testTextChunkInstantiation(): void

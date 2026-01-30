@@ -15,6 +15,7 @@ use SageGrids\PhpAiSdk\Exception\MemoryLimitExceededException;
 use SageGrids\PhpAiSdk\Result\FinishReason;
 use SageGrids\PhpAiSdk\Result\TextResult;
 use SageGrids\PhpAiSdk\Result\ToolCall;
+use SageGrids\PhpAiSdk\Result\Usage;
 
 /**
  * Handles synchronous text generation with optional tool calling.
@@ -59,6 +60,8 @@ final class GenerateText extends AbstractGenerationFunction
             $messages = $this->messages;
             $roundtrip = 0;
             $warningDispatched = false;
+            /** @var Usage[] $roundtripUsage */
+            $roundtripUsage = [];
 
             while (true) {
                 // Check memory limit before making API call
@@ -91,17 +94,24 @@ final class GenerateText extends AbstractGenerationFunction
 
                 // If no tool calls or tool execution not needed, return the result
                 if (!$result->hasToolCalls() || !$this->shouldExecuteTools()) {
-                    $this->invokeOnFinish($result);
-                    $this->dispatchRequestCompleted($result, $startTime, $result->usage);
-                    return $result;
+                    $finalResult = $result->withAccumulatedUsage($roundtripUsage);
+                    $this->invokeOnFinish($finalResult);
+                    $this->dispatchRequestCompleted($finalResult, $startTime, $finalResult->usage);
+                    return $finalResult;
                 }
 
-                // Check max roundtrips
+                // Check max roundtrips before continuing
                 $roundtrip++;
                 if ($roundtrip > $this->maxToolRoundtrips) {
-                    $this->invokeOnFinish($result);
-                    $this->dispatchRequestCompleted($result, $startTime, $result->usage);
-                    return $result;
+                    $finalResult = $result->withAccumulatedUsage($roundtripUsage);
+                    $this->invokeOnFinish($finalResult);
+                    $this->dispatchRequestCompleted($finalResult, $startTime, $finalResult->usage);
+                    return $finalResult;
+                }
+
+                // Track usage from this roundtrip (only if we're continuing the loop)
+                if ($result->usage !== null) {
+                    $roundtripUsage[] = $result->usage;
                 }
 
                 // Execute tools and continue conversation

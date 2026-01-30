@@ -12,9 +12,10 @@ final readonly class TextResult
     /**
      * @param string $text The generated text content.
      * @param FinishReason|null $finishReason The reason generation stopped.
-     * @param Usage|null $usage Token usage statistics.
+     * @param Usage|null $usage Token usage statistics (accumulated across all roundtrips).
      * @param ToolCall[] $toolCalls Any tool calls made by the model.
      * @param array<string, mixed> $rawResponse The raw response from the provider.
+     * @param Usage[] $roundtripUsage Per-roundtrip token usage (when tool calls were executed).
      */
     public function __construct(
         public string $text,
@@ -22,7 +23,41 @@ final readonly class TextResult
         public ?Usage $usage = null,
         public array $toolCalls = [],
         public array $rawResponse = [],
+        public array $roundtripUsage = [],
     ) {
+    }
+
+    /**
+     * Create a new TextResult with accumulated usage from tool roundtrips.
+     *
+     * @param Usage[] $roundtripUsage Per-roundtrip usage to accumulate.
+     */
+    public function withAccumulatedUsage(array $roundtripUsage): self
+    {
+        if (empty($roundtripUsage)) {
+            return $this;
+        }
+
+        // Include current usage in the roundtrip list
+        $allUsage = $roundtripUsage;
+        if ($this->usage !== null) {
+            $allUsage[] = $this->usage;
+        }
+
+        // Accumulate all usage
+        $totalUsage = Usage::zero();
+        foreach ($allUsage as $usage) {
+            $totalUsage = $totalUsage->add($usage);
+        }
+
+        return new self(
+            text: $this->text,
+            finishReason: $this->finishReason,
+            usage: $totalUsage,
+            toolCalls: $this->toolCalls,
+            rawResponse: $this->rawResponse,
+            roundtripUsage: $allUsage,
+        );
     }
 
     /**

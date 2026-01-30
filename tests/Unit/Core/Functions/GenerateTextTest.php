@@ -17,6 +17,7 @@ use SageGrids\PhpAiSdk\Provider\TextProviderInterface;
 use SageGrids\PhpAiSdk\Result\FinishReason;
 use SageGrids\PhpAiSdk\Result\TextResult;
 use SageGrids\PhpAiSdk\Result\ToolCall;
+use SageGrids\PhpAiSdk\Result\Usage;
 
 final class GenerateTextTest extends TestCase
 {
@@ -356,5 +357,173 @@ final class GenerateTextTest extends TestCase
         ])->execute();
 
         $this->assertEquals('Response', $result->text);
+    }
+
+    public function testAccumulatesUsageAcrossToolRoundtrips(): void
+    {
+        $tool = Tool::create(
+            name: 'calculator',
+            description: 'Calculate',
+            parameters: Schema::object(['expression' => Schema::string()]),
+            execute: fn($args) => '42',
+        );
+
+        // First call with tool use - 100 prompt + 50 completion tokens
+        $firstResult = new TextResult(
+            text: '',
+            finishReason: FinishReason::ToolCalls,
+            toolCalls: [new ToolCall('call_1', 'calculator', ['expression' => '6 * 7'])],
+            usage: new Usage(promptTokens: 100, completionTokens: 50, totalTokens: 150),
+        );
+
+        // Second call after tool execution - 200 prompt + 30 completion tokens
+        $secondResult = new TextResult(
+            text: 'The answer is 42.',
+            finishReason: FinishReason::Stop,
+            usage: new Usage(promptTokens: 200, completionTokens: 30, totalTokens: 230),
+        );
+
+        $this->provider
+            ->shouldReceive('generateText')
+            ->twice()
+            ->andReturn($firstResult, $secondResult);
+
+        $result = GenerateText::create([
+            'model' => 'test/gpt-4',
+            'prompt' => 'What is 6 * 7?',
+            'tools' => [$tool],
+        ])->execute();
+
+        // Should accumulate: 100+200=300 prompt, 50+30=80 completion, 150+230=380 total
+        $this->assertNotNull($result->usage);
+        $this->assertEquals(300, $result->usage->promptTokens);
+        $this->assertEquals(80, $result->usage->completionTokens);
+        $this->assertEquals(380, $result->usage->totalTokens);
+
+        // Should have roundtrip usage
+        $this->assertCount(2, $result->roundtripUsage);
+        $this->assertEquals(100, $result->roundtripUsage[0]->promptTokens);
+        $this->assertEquals(200, $result->roundtripUsage[1]->promptTokens);
+    }
+
+    public function testAccumulatesUsageAcrossMultipleToolRoundtrips(): void
+    {
+        $tool = Tool::create(
+            name: 'calculator',
+            description: 'Calculate',
+            parameters: Schema::object(['expression' => Schema::string()]),
+            execute: fn($args) => '42',
+        );
+
+        // First call - triggers tool use
+        $firstResult = new TextResult(
+            text: '',
+            finishReason: FinishReason::ToolCalls,
+            toolCalls: [new ToolCall('call_1', 'calculator', ['expression' => '6 * 7'])],
+            usage: new Usage(promptTokens: 50, completionTokens: 20, totalTokens: 70),
+        );
+
+        // Second call - triggers another tool use
+        $secondResult = new TextResult(
+            text: '',
+            finishReason: FinishReason::ToolCalls,
+            toolCalls: [new ToolCall('call_2', 'calculator', ['expression' => '42 + 8'])],
+            usage: new Usage(promptTokens: 100, completionTokens: 25, totalTokens: 125),
+        );
+
+        // Third call - final response
+        $thirdResult = new TextResult(
+            text: 'The final answer is 50.',
+            finishReason: FinishReason::Stop,
+            usage: new Usage(promptTokens: 150, completionTokens: 15, totalTokens: 165),
+        );
+
+        $this->provider
+            ->shouldReceive('generateText')
+            ->times(3)
+            ->andReturn($firstResult, $secondResult, $thirdResult);
+
+        $result = GenerateText::create([
+            'model' => 'test/gpt-4',
+            'prompt' => 'Calculate step by step',
+            'tools' => [$tool],
+            'maxToolRoundtrips' => 10,
+        ])->execute();
+
+        // Should accumulate: 50+100+150=300 prompt, 20+25+15=60 completion, 70+125+165=360 total
+        $this->assertNotNull($result->usage);
+        $this->assertEquals(300, $result->usage->promptTokens);
+        $this->assertEquals(60, $result->usage->completionTokens);
+        $this->assertEquals(360, $result->usage->totalTokens);
+
+        // Should have 3 roundtrip usages
+        $this->assertCount(3, $result->roundtripUsage);
+    }
+
+    public function testUsageWithNoToolCalls(): void
+    {
+        $expectedResult = new TextResult(
+            text: 'Response',
+            finishReason: FinishReason::Stop,
+            usage: new Usage(promptTokens: 50, completionTokens: 20, totalTokens: 70),
+        );
+
+        $this->provider
+            ->shouldReceive('generateText')
+            ->once()
+            ->andReturn($expectedResult);
+
+        $result = GenerateText::create([
+            'model' => 'test/gpt-4',
+            'prompt' => 'Hello',
+        ])->execute();
+
+        // Single call, usage should be preserved
+        $this->assertNotNull($result->usage);
+        $this->assertEquals(50, $result->usage->promptTokens);
+        $this->assertEquals(20, $result->usage->completionTokens);
+        $this->assertEquals(70, $result->usage->totalTokens);
+
+        // No roundtrips, so roundtripUsage should be empty
+        $this->assertEmpty($result->roundtripUsage);
+    }
+
+    public function testUsageAccumulationWhenMaxRoundtripsExceeded(): void
+    {
+        $tool = Tool::create(
+            name: 'looping_tool',
+            description: 'Loops',
+            parameters: Schema::object([]),
+            execute: fn() => 'loop',
+        );
+
+        $loopingResult = new TextResult(
+            text: '',
+            finishReason: FinishReason::ToolCalls,
+            toolCalls: [new ToolCall('call_1', 'looping_tool', [])],
+            usage: new Usage(promptTokens: 100, completionTokens: 50, totalTokens: 150),
+        );
+
+        // Should be called exactly 2 times (initial + 1 roundtrip when maxToolRoundtrips=1)
+        $this->provider
+            ->shouldReceive('generateText')
+            ->times(2)
+            ->andReturn($loopingResult);
+
+        $result = GenerateText::create([
+            'model' => 'test/gpt-4',
+            'prompt' => 'Test',
+            'tools' => [$tool],
+            'maxToolRoundtrips' => 1,
+        ])->execute();
+
+        // Should accumulate usage from both calls: 100*2=200 prompt, 50*2=100 completion
+        $this->assertNotNull($result->usage);
+        $this->assertEquals(200, $result->usage->promptTokens);
+        $this->assertEquals(100, $result->usage->completionTokens);
+        $this->assertEquals(300, $result->usage->totalTokens);
+
+        // Should have 2 roundtrip usages
+        $this->assertCount(2, $result->roundtripUsage);
     }
 }

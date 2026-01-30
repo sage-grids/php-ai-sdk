@@ -16,154 +16,26 @@ The PHP AI SDK is a well-architected library that provides a unified interface f
 
 ## Critical Issues
 
-### 1. ~~Thread Safety: Static State is Not Thread-Safe~~ (RESOLVED)
-
-**Severity:** HIGH
-**Files:** `src/AIConfig.php`, `src/Provider/ProviderRegistry.php`
-**Status:** RESOLVED - Implemented `AIContext` class and added documentation
-
-Both `AIConfig` and `ProviderRegistry` now have thread-safety warnings in their docblocks, and a new `AIContext` class provides an instance-based alternative for async PHP environments.
-
-**Solution Implemented:**
-- **Warning documentation**: Added `@warning` docblocks to `AIConfig` and `ProviderRegistry` explaining thread-safety concerns in Swoole, ReactPHP, Amp, and Fiber-based environments
-- **AIContext class**: New instance-based configuration class that provides:
-  - Isolated `ProviderRegistry` per context (not the global singleton)
-  - Instance-based configuration (provider, timeout, maxToolRoundtrips, etc.)
-  - Fluent interface for configuration
-  - `autoConfigureFromEnv()` for environment-based setup
-  - Compatible with dependency injection patterns
-
-**Usage Example:**
-```php
-use SageGrids\PhpAiSdk\AIContext;
-
-// Create isolated context per request (async-safe)
-$context = new AIContext();
-$context->setProvider('openai/gpt-4o')
-    ->setTimeout(60)
-    ->autoConfigureFromEnv();
-
-// Each request handler gets its own isolated context
-$provider = $context->provider('openai');
-```
-
-**Files Added/Modified:**
-- `src/AIContext.php` (new)
-- `src/AIConfig.php` (docblock updated)
-- `src/Provider/ProviderRegistry.php` (docblock updated)
-
----
-
-### 2. ~~Tool Execution Security: Arbitrary Code Execution Risk~~ (RESOLVED)
-
-**Severity:** HIGH
-**Files:** `src/Core/Functions/GenerateText.php`, `src/Core/Tool/ToolExecutor.php`
-**Status:** RESOLVED - Implemented `ToolExecutionPolicy` class
-
-The tool execution system now supports configurable security policies via `ToolExecutionPolicy`:
-
-**Solution Implemented:**
-- **Tool whitelisting/denylisting**: Restrict which tools can be executed via `allowTools()` and `denyTools()`
-- **Confirmation callbacks**: Add `withConfirmation()` for human/system approval before execution
-- **Argument sanitization**: Add `withArgumentSanitizer()` to transform/validate arguments
-- **Execution timeouts**: Add `withTimeout()` for PCNTL-based timeout enforcement (Unix)
-- **Flexible error handling**: Configure whether violations throw exceptions or return error results
-
-**Usage Example:**
-```php
-use SageGrids\PhpAiSdk\Core\Tool\ToolExecutionPolicy;
-
-$policy = ToolExecutionPolicy::create()
-    ->allowTools(['get_weather', 'search_database'])
-    ->withTimeout(30)
-    ->withConfirmation(function (string $toolName, array $args) {
-        logger()->info("Tool call: $toolName", $args);
-        return !str_starts_with($toolName, 'delete_');
-    });
-
-$result = generateText([
-    'model' => 'openai/gpt-4o',
-    'prompt' => 'What is the weather?',
-    'tools' => [$weatherTool],
-    'toolExecutionPolicy' => $policy,
-]);
-```
-
-**Files Added/Modified:**
-- `src/Core/Tool/ToolExecutionPolicy.php` (new)
-- `src/Exception/ToolSecurityException.php` (new)
-- `src/Core/Tool/ToolExecutor.php` (updated)
-- `src/Core/Options/TextGenerationOptions.php` (updated)
-- `src/Core/Functions/GenerateText.php` (updated)
-
----
-
-### 3. ~~Memory Growth in Tool Roundtrips~~ (RESOLVED)
-
-**Severity:** MEDIUM-HIGH
-**File:** `src/Core/Functions/GenerateText.php`
-**Status:** RESOLVED - Implemented `maxMessages` limit with warning events
-
-The tool execution loop now enforces configurable message limits to prevent unbounded memory growth.
-
-**Solution Implemented:**
-- **maxMessages option**: Configurable limit on total messages during tool roundtrips
-- **AIConfig::setMaxMessages()**: Global default (100 messages)
-- **Per-request override**: Via `TextGenerationOptions::maxMessages`
-- **Warning event**: `MemoryLimitWarning` dispatched at 80% of limit
-- **Exception**: `MemoryLimitExceededException` thrown when limit exceeded
-
-**Usage Example:**
-```php
-use SageGrids\PhpAiSdk\AIConfig;
-use SageGrids\PhpAiSdk\Event\Events\MemoryLimitWarning;
-
-// Set global default
-AIConfig::setMaxMessages(50);
-
-// Or per-request
-$result = generateText([
-    'model' => 'openai/gpt-4o',
-    'prompt' => 'Complex task',
-    'tools' => [$myTool],
-    'maxMessages' => 100,
-]);
-
-// Listen for warnings
-$dispatcher->addListener(MemoryLimitWarning::class, function ($event) {
-    logger()->warning("Approaching limit: {$event->usagePercentage}%");
-});
-```
-
-**Files Added/Modified:**
-- `src/Exception/MemoryLimitExceededException.php` (new)
-- `src/Event/Events/MemoryLimitWarning.php` (new)
-- `src/AIConfig.php` (added maxMessages)
-- `src/Core/Options/TextGenerationOptions.php` (added maxMessages)
-- `src/Core/Functions/AbstractGenerationFunction.php` (added maxMessages parsing)
-- `src/Core/Functions/GenerateText.php` (enforces limit)
-
----
-
-### 4. Missing Token Usage Accumulation
+### 4. Missing Token Usage Accumulation ✅ RESOLVED
 
 **Severity:** MEDIUM
 **File:** `src/Core/Functions/GenerateText.php`
+**Status:** Fixed in current version
 
-Token usage is only captured from the final API call, not accumulated across tool roundtrips.
+~~Token usage is only captured from the final API call, not accumulated across tool roundtrips.~~
+
+**Resolution:**
+- `TextResult` now includes `roundtripUsage` array containing per-call `Usage` objects
+- The `usage` property now contains accumulated totals across all tool roundtrips
+- Added `withAccumulatedUsage()` method to `TextResult` for creating accumulated results
+- `GenerateText::execute()` now tracks and accumulates usage across all API calls
 
 ```php
-$this->dispatchRequestCompleted($result, $startTime, $result->usage);  // Only last call's usage
+// Example: After multiple tool roundtrips
+$result = generateText([...]);
+$result->usage;           // Total accumulated usage across all roundtrips
+$result->roundtripUsage;  // Array of Usage objects, one per API call
 ```
-
-**Impact:**
-- Users cannot accurately track total token consumption
-- Cost estimation will be incorrect for tool-heavy conversations
-
-**Recommendation:**
-- Accumulate `Usage` across all roundtrips
-- Add a `roundtrips` field to `TextResult` showing per-call usage
-- Document this behavior clearly
 
 ---
 

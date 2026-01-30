@@ -14,9 +14,28 @@ use SageGrids\PhpAiSdk\Provider\OpenRouter\OpenRouterProvider;
 /**
  * Static configuration class for global AI settings.
  *
- * This class provides thread-safe access to global AI configuration,
- * allowing you to set default providers, timeouts, and other settings
- * that apply to all AI operations.
+ * This class provides access to global AI configuration, allowing you to set
+ * default providers, timeouts, and other settings that apply to all AI operations.
+ *
+ * @warning This class uses static state which is NOT thread-safe in async PHP
+ *          environments (Swoole, ReactPHP, Amp, Fiber-based concurrency). Static
+ *          properties are shared across all coroutines/fibers, which can lead to
+ *          race conditions and configuration bleeding between concurrent requests.
+ *
+ *          For concurrent request handling in async environments, use {@see AIContext}
+ *          with dependency injection instead. Example:
+ *
+ *          ```php
+ *          // Async-safe approach with AIContext
+ *          $context = new AIContext();
+ *          $context->setProvider('openai/gpt-4o');
+ *          $context->setTimeout(60);
+ *
+ *          // Pass context to your request handler
+ *          $handler = new MyRequestHandler($context);
+ *          ```
+ *
+ * @see AIContext For thread-safe, instance-based configuration in async environments.
  */
 final class AIConfig
 {

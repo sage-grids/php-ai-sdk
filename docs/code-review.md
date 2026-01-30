@@ -1,887 +1,453 @@
 # PHP AI SDK - Comprehensive Code Review
 
-**Review Date**: January 2026
-**Codebase Version**: As of commit 320a953
-**Reviewer**: Claude Opus 4.5
+**Review Date:** 2026-01-30
+**Version Reviewed:** Latest (commit be6b89e)
+**Reviewer:** Code Quality Analysis
 
 ---
 
 ## Executive Summary
 
-This PHP AI SDK is a well-architected library inspired by Vercel's AI SDK. The codebase demonstrates solid engineering fundamentals with modern PHP 8.1+ features. However, there are several architectural improvements and bug fixes that would elevate this library from good to production-ready.
+The PHP AI SDK is a well-architected library that provides a unified interface for multiple AI providers. The codebase demonstrates professional PHP development practices with strong typing, comprehensive test coverage, and clear separation of concerns. However, this review identifies several critical issues and gaps that should be addressed before production deployment.
 
-**Overall Assessment**: 7.5/10
-**Recommended for Production**: After addressing Critical and High priority items
-
----
-
-## Table of Contents
-
-1. [Critical Issues](#1-critical-issues)
-2. [High Priority Improvements](#2-high-priority-improvements)
-3. [Architecture Recommendations](#3-architecture-recommendations)
-4. [Code Quality Issues](#4-code-quality-issues)
-5. [API Design Feedback](#5-api-design-feedback)
-6. [Security Considerations](#6-security-considerations)
-7. [Testing Gaps](#7-testing-gaps)
-8. [Documentation Improvements](#8-documentation-improvements)
-9. [Performance Considerations](#9-performance-considerations)
-10. [Positive Highlights](#10-positive-highlights)
+**Overall Assessment:** The library is well-designed but has some security, thread-safety, and edge-case handling issues that need attention.
 
 ---
 
-## 1. Critical Issues
+## Critical Issues
 
-### 1.1 API Key Exposure in URL (Google Provider)
+### 1. Thread Safety: Static State is Not Thread-Safe
 
-**File**: `src/Provider/Google/GoogleProvider.php:729`
+**Severity:** HIGH
+**Files:** `src/AIConfig.php`, `src/Provider/ProviderRegistry.php`
 
+Both `AIConfig` and `ProviderRegistry` use static properties to store state, which is problematic in concurrent PHP environments.
+
+**Problem in `AIConfig.php`:**
 ```php
-private function buildEndpoint(string $action): string
-{
-    $model = $this->config->defaultModel;
-    return "/v1beta/models/{$model}{$action}?key={$this->apiKey}";
-}
-```
-
-**Problem**: The API key is passed as a URL query parameter. This is a security risk because:
-- URLs are logged in web server access logs
-- URLs may be cached by proxies
-- URLs appear in browser history (if used client-side)
-
-**Recommendation**: Google's Gemini API supports the `x-goog-api-key` header. Use header-based authentication instead:
-
-```php
-private function buildRequest(string $method, string $endpoint, array $body): Request
-{
-    $headers = [
-        'Content-Type' => 'application/json',
-        'x-goog-api-key' => $this->apiKey,  // Add this
-    ];
-    // Remove ?key= from URL construction
-}
-```
-
-### 1.2 Thread Safety Issues with Static State
-
-**Files**: `src/AIConfig.php`, `src/Provider/ProviderRegistry.php`
-
-Both classes use static mutable state which is problematic in:
-- Long-running processes (workers, daemons)
-- Concurrent request handling (async PHP, Swoole, ReactPHP)
-- Testing (test isolation)
-
-**Current Issues**:
-```php
-// AIConfig.php
 private static ProviderInterface|string|null $provider = null;
 private static array $defaults = [];
+private static int $timeout = 30;
+```
 
-// ProviderRegistry.php - Singleton pattern
+**Problem in `ProviderRegistry.php`:**
+```php
 private static ?self $instance = null;
 ```
 
-**Recommendation**: Introduce a `Container` or `Context` class that can be dependency-injected:
+**Impact:**
+- In PHP-FPM with opcache, static state can persist across requests
+- Different requests might interfere with each other's configuration
+- Race conditions in multi-threaded SAPI environments
 
+**Recommendation:**
+- Provide instance-based configuration option alongside static API
+- Document that static configuration should only be set once during application bootstrap
+- Consider using a dependency injection pattern for provider resolution
+
+---
+
+### 2. Tool Execution Security: Arbitrary Code Execution Risk
+
+**Severity:** HIGH
+**Files:** `src/Core/Functions/GenerateText.php`, `src/Core/Tool/ToolExecutor.php`
+
+The tool execution system executes functions based on AI model output without sufficient safeguards.
+
+**Current Flow:**
 ```php
-final class AIContext
-{
-    public function __construct(
-        private ?ProviderInterface $defaultProvider = null,
-        private array $defaults = [],
-        private ?EventDispatcherInterface $eventDispatcher = null,
-    ) {}
-}
-
-// Usage becomes:
-$context = new AIContext(defaultProvider: $openaiProvider);
-$result = $ai->generateText($options, $context);
+// GenerateText.php:141
+$tool = $registry->get($toolCall->name);  // Tool name comes from AI
+// ...
+$toolResult = $executor->execute($tool, $toolCall);  // Arguments from AI
 ```
 
-### 1.3 Streaming May Yield Duplicate Final Chunks
+**Risks:**
+1. AI model could attempt to call tools with unexpected names
+2. Tool arguments come directly from AI output with minimal validation
+3. No sandboxing or permission system for tool execution
 
-**Files**: `src/Provider/OpenAI/OpenAIProvider.php:200-204`, `src/Provider/Google/GoogleProvider.php:199-201`
+**Recommendation:**
+- Add explicit whitelist of allowed tool names per request
+- Implement argument sanitization before tool execution
+- Consider adding a confirmation callback for sensitive tool operations
+- Add execution timeout per tool call
+
+---
+
+### 3. Memory Growth in Tool Roundtrips
+
+**Severity:** MEDIUM-HIGH
+**File:** `src/Core/Functions/GenerateText.php:59-93`
+
+The `while (true)` loop in `execute()` accumulates messages without bounds.
 
 ```php
-// Ensure we yield a final chunk if we haven't already
-if ($finishReason !== null && !$isFirst) {
-    yield TextChunk::final($accumulatedText, '', $finishReason, $usage);
+while (true) {
+    $result = $this->provider->generateText(...);
+    // ...
+    $messages = $this->executeToolsAndContinue($messages, $result);  // Grows each iteration
 }
 ```
 
-**Problem**: If `$finishReason !== null` is true inside the loop AND the condition above is also true, the final chunk may be yielded twice.
+**Impact:**
+- Messages array grows with each tool roundtrip
+- No memory limit protection
+- Long-running tool conversations could exhaust memory
 
-**Recommendation**: Track whether final chunk was yielded:
+**Recommendation:**
+- Add configurable memory/message count limits
+- Implement message summarization or pruning for long conversations
+- Add warning when approaching limits
+
+---
+
+### 4. Missing Token Usage Accumulation
+
+**Severity:** MEDIUM
+**File:** `src/Core/Functions/GenerateText.php`
+
+Token usage is only captured from the final API call, not accumulated across tool roundtrips.
 
 ```php
-$finalYielded = false;
+$this->dispatchRequestCompleted($result, $startTime, $result->usage);  // Only last call's usage
+```
 
+**Impact:**
+- Users cannot accurately track total token consumption
+- Cost estimation will be incorrect for tool-heavy conversations
+
+**Recommendation:**
+- Accumulate `Usage` across all roundtrips
+- Add a `roundtrips` field to `TextResult` showing per-call usage
+- Document this behavior clearly
+
+---
+
+### 5. Inconsistent Tool Call Handling in Streaming
+
+**Severity:** MEDIUM
+**File:** `src/Core/Functions/StreamText.php`
+
+`StreamText` does not handle tool calls at all, unlike `GenerateText` which has automatic tool execution.
+
+```php
+// StreamText::execute() - No tool handling
+foreach ($generator as $chunk) {
+    // Just yields chunks, ignores any tool calls
+    yield $chunk;
+}
+```
+
+**Impact:**
+- Users expecting tool auto-execution will get unexpected behavior
+- Inconsistent API surface between `generateText` and `streamText`
+
+**Recommendation:**
+- Either implement tool handling in streaming, or
+- Explicitly document this limitation
+- Consider a separate `streamTextWithTools` method
+
+---
+
+## Security Issues
+
+### 6. API Key Exposure Risk
+
+**Severity:** MEDIUM
+**Files:** `src/Provider/OpenAI/OpenAIProvider.php`, `src/AIConfig.php`
+
+API keys are stored in memory and could be exposed through:
+- Exception traces containing object state
+- Debug output or var_dump
+- Memory inspection
+
+```php
+public function __construct(
+    private readonly string $apiKey,  // Stored in object
+```
+
+**Recommendation:**
+- Implement `__debugInfo()` to hide sensitive properties
+- Consider using secure string handling or environment-only access
+- Add documentation warning about exception logging
+
+---
+
+### 7. Cache Key May Leak Sensitive Data
+
+**Severity:** LOW-MEDIUM
+**File:** `src/Http/Middleware/CachingMiddleware.php`
+
+The cache key includes the full request body which may contain sensitive prompts.
+
+```php
+$data = [
+    'method' => $request->method,
+    'uri' => $request->uri,
+    'body' => $request->body,  // May contain sensitive data
+];
+return $this->prefix . hash('sha256', json_encode($data) ?: '');
+```
+
+**Impact:**
+- Request content becomes part of cache keys
+- Could leak through cache debugging or key enumeration
+
+**Recommendation:**
+- Document this behavior clearly
+- Consider adding options to exclude certain fields from cache key
+- Add warning about caching AI requests (non-deterministic)
+
+---
+
+## Input Validation Gaps
+
+### 8. No Parameter Range Validation
+
+**Severity:** MEDIUM
+**File:** `src/Core/Functions/AbstractGenerationFunction.php`
+
+Parameters like `temperature` and `topP` are passed through without validation.
+
+```php
+$this->temperature = isset($this->options['temperature']) ? (float) $this->options['temperature'] : null;
+$this->topP = isset($this->options['topP']) ? (float) $this->options['topP'] : null;
+```
+
+**OpenAI Valid Ranges:**
+- `temperature`: 0-2
+- `topP`: 0-1
+- `maxTokens`: 1 - model_limit
+
+**Impact:**
+- Invalid values passed to API cause unclear errors
+- Provider-specific limits not enforced
+
+**Recommendation:**
+- Add validation in `AbstractGenerationFunction::parseOptions()`
+- Consider provider-specific validation
+- Provide clear error messages with valid ranges
+
+---
+
+### 9. JSON Encoding Failures Not Handled
+
+**Severity:** LOW-MEDIUM
+**Files:** Multiple provider files
+
+`json_encode()` calls don't check for failures:
+
+```php
+// OpenAIProvider.php:615
+body: json_encode($body),  // Could return false on encoding failure
+```
+
+**Impact:**
+- Circular references or invalid UTF-8 could cause silent failures
+- `false` would be sent as request body
+
+**Recommendation:**
+- Add `JSON_THROW_ON_ERROR` flag or explicit error checking
+- Wrap in try-catch with meaningful error message
+
+---
+
+## Type Safety Issues
+
+### 10. Tool Call ID Generation is Not Unique Enough
+
+**Severity:** LOW-MEDIUM
+**File:** `src/Provider/Google/GoogleProvider.php:561`
+
+Google provider uses `uniqid()` for tool call IDs:
+
+```php
+$toolCalls[] = new ToolCall(
+    id: uniqid('call_'),  // Not guaranteed unique
+```
+
+**Impact:**
+- `uniqid()` is based on microsecond timestamp, not cryptographically unique
+- Collision possible in high-throughput scenarios
+
+**Recommendation:**
+- Use `bin2hex(random_bytes(16))` or similar
+- Consider using UUIDs
+
+---
+
+### 11. Schema Validation After Execution
+
+**Severity:** LOW
+**File:** `src/Core/Tool/Tool.php`
+
+Return value validation happens after tool execution, not before potential side effects:
+
+```php
+$result = $handler($arguments);  // Executed first
+
+// Validation happens after
+if ($this->returnSchema !== null) {
+    $returnValidation = $this->returnSchema->validate($result);
+```
+
+**Impact:**
+- Tools with side effects might have already modified state before validation fails
+
+**Recommendation:**
+- This is expected behavior for return validation
+- Consider adding pre-execution hooks for side-effect prevention
+
+---
+
+## Error Handling Gaps
+
+### 12. Streaming Error State Not Cleaned Up
+
+**Severity:** LOW-MEDIUM
+**File:** `src/Provider/OpenAI/OpenAIProvider.php`
+
+When streaming fails mid-stream, no cleanup occurs:
+
+```php
 foreach ($streamingResponse->events() as $event) {
-    // ... inside the loop when yielding final:
-    if ($finishReason !== null) {
-        yield TextChunk::final(...);
-        $finalYielded = true;
-    }
-}
-
-if ($finishReason !== null && !$finalYielded) {
-    yield TextChunk::final(...);
-}
+    // If exception thrown here, accumulated state is lost
 ```
+
+**Impact:**
+- Partial responses may be discarded without notification
+- No way to resume or retry partial streams
+
+**Recommendation:**
+- Implement partial result recovery
+- Consider buffering last successful chunk for error context
 
 ---
 
-## 2. High Priority Improvements
+### 13. Provider Registry Throws on Unknown Provider
 
-### 2.1 Missing Model Override in Provider Methods
+**Severity:** LOW
+**File:** `src/Provider/ProviderRegistry.php`
 
-**Files**: All provider implementations
-
-**Problem**: The `generateText()` and other methods use `$this->config->defaultModel` but don't accept a model parameter, making it impossible to use different models with the same provider instance.
-
-**Current Code**:
-```php
-public function generateText(
-    array $messages,
-    ?string $system = null,
-    // ... no $model parameter
-): TextResult {
-    $requestBody = $this->buildChatRequest(...);  // Uses defaultModel
-}
-```
-
-**Recommendation**: Add `$model` parameter to all provider methods:
+The registry throws immediately when a provider is not found:
 
 ```php
-public function generateText(
-    array $messages,
-    ?string $model = null,  // Add this
-    ?string $system = null,
-    // ...
-): TextResult {
-    $effectiveModel = $model ?? $this->config->defaultModel;
-}
-```
-
-This also requires updating `TextProviderInterface` and all implementations.
-
-### 2.2 Inconsistent Exception Hierarchy
-
-**Problem**: There are two parallel exception hierarchies:
-
-1. SDK-level exceptions (`src/Exception/`): `AIException` -> `ProviderException` -> specific exceptions
-2. Provider-specific exceptions (`src/Provider/*/Exception/`): `OpenAIException`, `GoogleException`, `OpenRouterException`
-
-This creates confusion about which exceptions to catch:
-
-```php
-// Which should users catch?
-try {
-    AI::generateText([...]);
-} catch (ProviderException $e) {           // SDK-level
-} catch (OpenAIException $e) {              // Provider-specific
-} catch (Google\AuthenticationException $e) {  // Provider-specific nested
-}
-```
-
-**Recommendation**: Choose one approach. I recommend making provider-specific exceptions extend SDK exceptions:
-
-```php
-// Provider-specific exceptions should extend SDK exceptions
-namespace SageGrids\PhpAiSdk\Provider\OpenAI\Exception;
-
-class OpenAIException extends \SageGrids\PhpAiSdk\Exception\ProviderException
+public function get(string $name): ProviderInterface
 {
-    public function __construct(string $message, ...) {
-        parent::__construct($message, provider: 'openai', ...);
+    if (!$this->has($name)) {
+        throw new ProviderNotFoundException($name);
     }
-}
 ```
 
-### 2.3 No Retry Logic for Streaming Errors
+**Impact:**
+- No way to check existence before getting without try-catch
 
-**File**: `src/Http/GuzzleHttpClient.php:83-85`
-
-```php
-// Separate client for streaming WITHOUT retry middleware
-// Retrying a stream after receiving data would cause corruption/duplication
-```
-
-**Problem**: While the comment correctly identifies why retries are disabled, streaming requests have no error recovery at all. If a connection drops mid-stream, the user loses all data.
-
-**Recommendation**: Implement resumable streaming or at least buffer accumulated data before erroring:
-
-```php
-public function stream(Request $request): StreamingResponse
-{
-    try {
-        $guzzleResponse = $this->streamClient->request(...);
-        return new StreamingResponse($guzzleResponse->getBody());
-    } catch (RequestException $e) {
-        // For connection errors BEFORE data starts, retry is safe
-        if ($this->isRetryableConnectionError($e)) {
-            return $this->stream($request);  // Retry
-        }
-        throw $e;
-    }
-}
-```
-
-### 2.4 Tool Execution Doesn't Validate Return Types
-
-**File**: `src/Core/Tool/Tool.php:115-133`
-
-```php
-public function execute(array $arguments): mixed
-{
-    // Validates input arguments
-    $validation = $this->parameters->validate($arguments);
-    // ...
-    return $handler($arguments);  // No output validation
-}
-```
-
-**Problem**: Tool return values are not validated. If a tool returns invalid data, it may cause downstream issues or confusing error messages.
-
-**Recommendation**: Add optional return schema validation:
-
-```php
-final class Tool
-{
-    public function __construct(
-        // ...
-        private readonly ?Schema $returnSchema = null,
-    ) {}
-
-    public function execute(array $arguments): mixed
-    {
-        $result = $handler($arguments);
-
-        if ($this->returnSchema !== null) {
-            $validation = $this->returnSchema->validate($result);
-            if (!$validation->isValid) {
-                throw new ToolExecutionException(...);
-            }
-        }
-
-        return $result;
-    }
-}
-```
+**Recommendation:**
+- The `has()` method exists but should be documented more prominently
+- Consider adding `getOrNull()` method
 
 ---
 
-## 3. Architecture Recommendations
+## Code Quality Observations
 
-### 3.1 Consider Using DTOs Instead of Arrays for Options
+### 14. Large Class Responsibility
 
-**Current Pattern**:
-```php
-AI::generateText([
-    'model' => 'openai/gpt-4o',
-    'prompt' => 'Hello',
-    'temperature' => 0.7,
-]);
-```
+**Severity:** LOW (Suggestion)
+**File:** `src/Provider/OpenAI/OpenAIProvider.php` (618 lines)
 
-**Problems**:
-- No IDE autocomplete for option keys
-- Typos in option names fail silently or throw runtime errors
-- Type validation happens at runtime only
+The provider class handles:
+- Text generation
+- Streaming
+- Object generation
+- Embeddings
+- Request building
+- Response parsing
 
-**Recommendation**: Create option DTOs:
-
-```php
-final readonly class TextGenerationOptions
-{
-    public function __construct(
-        public string|ProviderInterface $model,
-        public ?string $prompt = null,
-        public ?array $messages = null,
-        public ?string $system = null,
-        public ?int $maxTokens = null,
-        public ?float $temperature = null,
-        // ...
-    ) {}
-}
-
-// Usage with IDE support:
-AI::generateText(new TextGenerationOptions(
-    model: 'openai/gpt-4o',
-    prompt: 'Hello',
-    temperature: 0.7,
-));
-
-// Keep array syntax for backwards compatibility:
-AI::generateText(['model' => '...']);  // Internally converted to DTO
-```
-
-### 3.2 Decouple Message Formatting from Providers
-
-**Problem**: Each provider implements its own message formatting logic with significant code duplication.
-
-**Files**:
-- `OpenAIProvider.php:488-510` - `formatMessages()`
-- `GoogleProvider.php:501-557` - `formatMessages()`
-- `OpenRouterProvider.php` - Similar pattern
-
-**Recommendation**: Extract message formatting into a strategy pattern:
-
-```php
-interface MessageFormatterInterface
-{
-    public function format(array $messages, ?string $system): array;
-}
-
-class OpenAIMessageFormatter implements MessageFormatterInterface { }
-class GeminiMessageFormatter implements MessageFormatterInterface { }
-
-// Providers become simpler:
-final class OpenAIProvider implements TextProviderInterface
-{
-    public function __construct(
-        private MessageFormatterInterface $formatter = new OpenAIMessageFormatter(),
-    ) {}
-}
-```
-
-### 3.3 Add Middleware/Pipeline Support
-
-**Current State**: Events provide observation but no interception.
-
-**Recommendation**: Add middleware support for request/response modification:
-
-```php
-interface MiddlewareInterface
-{
-    public function handle(Request $request, callable $next): Response;
-}
-
-class LoggingMiddleware implements MiddlewareInterface
-{
-    public function handle(Request $request, callable $next): Response
-    {
-        $this->logger->info('Request', $request->toArray());
-        $response = $next($request);
-        $this->logger->info('Response', $response->toArray());
-        return $response;
-    }
-}
-
-// Usage:
-$provider = new OpenAIProvider($apiKey);
-$provider->addMiddleware(new LoggingMiddleware($logger));
-$provider->addMiddleware(new CachingMiddleware($cache));
-```
-
-### 3.4 Add Proper Model Configuration
-
-**Problem**: Model-specific settings (context window, pricing, capabilities) are hardcoded or absent.
-
-**Recommendation**: Create a model registry with metadata:
-
-```php
-final readonly class ModelInfo
-{
-    public function __construct(
-        public string $id,
-        public string $provider,
-        public int $contextWindow,
-        public bool $supportsVision,
-        public bool $supportsTools,
-        public ?float $inputPricePerMToken = null,
-        public ?float $outputPricePerMToken = null,
-    ) {}
-}
-
-class ModelRegistry
-{
-    public function get(string $modelId): ModelInfo;
-    public function supports(string $modelId, string $capability): bool;
-}
-```
+**Recommendation:**
+- Consider extracting response parsers to separate classes
+- Could use composition for different capabilities
 
 ---
 
-## 4. Code Quality Issues
+### 15. Unused Default Embedding Response
 
-### 4.1 Missing `declare(strict_types=1)`
+**Severity:** LOW
+**File:** `src/Testing/FakeProvider.php`
 
-**Files Missing Declaration**:
-- `src/Provider/ProviderInterface.php`
-- `src/Provider/OpenAI/OpenAIProvider.php`
-- `src/Provider/Google/GoogleProvider.php`
-- `src/Core/Schema/Schema.php`
-- `src/Core/Tool/Tool.php`
-- `src/Http/GuzzleHttpClient.php`
-- Most files in `src/`
-
-**Recommendation**: Add `declare(strict_types=1);` to all PHP files for consistent type enforcement.
-
-### 4.2 Inconsistent Readonly Usage
-
-Some classes are `readonly`, others have readonly properties, others have neither:
+The fake provider uses hardcoded default embedding:
 
 ```php
-// Fully readonly (good)
-final readonly class TextResult { }
-
-// Non-readonly class with readonly properties (inconsistent)
-final class OpenAIProvider {
-    private readonly string $apiKey;  // Property is readonly
-    private HttpClientInterface $httpClient;  // This is not
-}
-
-// Neither (should be readonly)
-class ProviderCapabilities {
-    public function __construct(
-        public bool $supportsTextGeneration,  // Should be readonly
-    ) {}
-}
+return $this->getNextResponse('embed', FakeResponse::embedding([0.1, 0.2, 0.3]));
 ```
 
-**Recommendation**: Use `final readonly class` consistently for value objects and configuration.
+**Impact:**
+- Inconsistent dimensions with real embeddings (typically 384-3072 dimensions)
 
-### 4.3 PHPDoc Inconsistencies
-
-**File**: `src/Provider/TextProviderInterface.php`
-
-```php
-/**
- * @param Message[] $messages The conversation messages.
- */
-public function generateText(
-    array $messages,  // No type hint enforcement at runtime
-```
-
-**Problem**: PHPDoc says `Message[]` but PHP doesn't enforce this at runtime. Invalid input could cause confusing errors deep in the code.
-
-**Recommendation**: Add runtime validation or use PHPStan generics properly:
-
-```php
-/**
- * @param list<Message> $messages
- */
-public function generateText(array $messages, ...): TextResult
-{
-    foreach ($messages as $i => $message) {
-        if (!$message instanceof Message) {
-            throw new \InvalidArgumentException(
-                "messages[$i] must be instance of Message"
-            );
-        }
-    }
-}
-```
-
-### 4.4 Magic Strings Should Be Constants
-
-**File**: `src/Provider/OpenAI/OpenAIProvider.php`
-
-```php
-private function formatToolChoice(string|Tool $toolChoice): string|array
-{
-    if ($toolChoice instanceof Tool) {
-        return ['type' => 'function', ...];  // 'function' is magic string
-    }
-    return $toolChoice;  // 'auto', 'none', 'required' are magic strings
-}
-```
-
-**Recommendation**: Define constants or an enum:
-
-```php
-enum ToolChoice: string
-{
-    case Auto = 'auto';
-    case None = 'none';
-    case Required = 'required';
-}
-```
-
-### 4.5 Overly Permissive Error Handling
-
-**File**: `src/Core/Functions/GenerateText.php:136-145`
-
-```php
-if ($tool === null) {
-    // Tool not found, add error message
-    $messages[] = new ToolMessage(
-        $toolCall->id,
-        "Error: Tool '{$toolCall->name}' not found"
-    );
-    continue;  // Silently continues
-}
-```
-
-**Problem**: Tool not found is silently handled by adding an error message. This may mask configuration issues.
-
-**Recommendation**: Make this configurable or throw by default:
-
-```php
-if ($tool === null) {
-    if ($this->strictToolResolution) {
-        throw new ToolNotFoundException($toolCall->name);
-    }
-    // Fall back to error message
-}
-```
+**Recommendation:**
+- Use realistic default dimensions or make configurable
 
 ---
 
-## 5. API Design Feedback
+## Test Coverage Assessment
 
-### 5.1 Rename `generateText` to More Accurate Name
+The test suite is comprehensive with 46 test files covering:
+- Core functionality (Schema, Message, Tool)
+- All provider implementations
+- Exception handling
+- HTTP middleware
+- Testing utilities
 
-**Problem**: `generateText()` does more than generate text - it handles tool calls, multi-turn conversations, etc.
-
-**Recommendation**: Consider names that better reflect the capability:
-- `chat()` - More accurate for conversation
-- `complete()` - Common industry term
-- Keep `generateText()` for simple completion, add `chat()` for full features
-
-### 5.2 Schema Factory Method Naming
-
-**Current**:
-```php
-Schema::string()
-Schema::integer()
-Schema::array(Schema::string())
-```
-
-**Issue**: `Schema::array()` shadows PHP's `array` type hint in some contexts.
-
-**Recommendation**: Use more explicit names:
-
-```php
-Schema::arrayOf(Schema::string())
-Schema::listOf(Schema::string())
-```
-
-### 5.3 Consider Builder Pattern for Complex Options
-
-**Current**:
-```php
-AI::generateText([
-    'model' => 'openai/gpt-4o',
-    'prompt' => 'Hello',
-    'temperature' => 0.7,
-    'maxTokens' => 1000,
-    'tools' => [$weatherTool],
-    'toolChoice' => 'auto',
-    'onChunk' => fn($chunk) => echo $chunk->delta,
-]);
-```
-
-**Recommendation**: Add fluent builder for complex use cases:
-
-```php
-AI::text()
-    ->model('openai/gpt-4o')
-    ->prompt('Hello')
-    ->temperature(0.7)
-    ->maxTokens(1000)
-    ->tools([$weatherTool])
-    ->onChunk(fn($chunk) => echo $chunk->delta)
-    ->generate();
-```
-
-### 5.4 Inconsistent Method Naming
-
-- `generateText()` vs `streamText()` - consistent
-- `generateObject()` vs `streamObject()` - consistent
-- `embed()` - why not `generateEmbedding()` for consistency?
-
-### 5.5 Missing Convenience Methods
-
-**Recommendation**: Add helper methods for common operations:
-
-```php
-// Current
-$result = AI::generateText(['model' => 'openai/gpt-4o', 'prompt' => 'Hi']);
-echo $result->text;
-
-// Proposed shorthand
-$text = AI::ask('openai/gpt-4o', 'Hi');
-```
+**Gaps Identified:**
+- Limited integration tests for full request/response cycles
+- No tests for concurrent access scenarios
+- Missing edge case tests for malformed API responses
 
 ---
 
-## 6. Security Considerations
+## Recommendations Summary
 
-### 6.1 No Input Sanitization for Tool Arguments
+### Immediate Actions (Before Production)
 
-**File**: `src/Core/Tool/Tool.php:115-133`
+1. **Address thread-safety** by documenting static configuration limitations
+2. **Add tool execution safeguards** with explicit whitelisting
+3. **Implement memory limits** for tool roundtrips
+4. **Add parameter validation** for temperature, topP, etc.
+5. **Handle JSON encoding failures** with proper error messages
 
-Tool arguments from AI models are passed directly to user functions without sanitization beyond schema validation.
+### Short-Term Improvements
 
-**Recommendation**: Add sanitization layer:
+6. **Accumulate token usage** across tool roundtrips
+7. **Document streaming tool limitations** clearly
+8. **Implement `__debugInfo()`** to hide API keys in debug output
+9. **Use cryptographically secure IDs** for tool calls in Google provider
+10. **Add request timeout** per tool execution
 
-```php
-public function execute(array $arguments): mixed
-{
-    $sanitized = $this->sanitizer->sanitize($arguments, $this->parameters);
-    return $handler($sanitized);
-}
-```
+### Long-Term Enhancements
 
-### 6.2 Logging May Expose Sensitive Data
-
-**Problem**: The event system allows logging of requests/responses which may contain:
-- API keys (if improperly included)
-- PII in prompts
-- Sensitive business data
-
-**Recommendation**: Add data masking utilities:
-
-```php
-class SensitiveDataMasker
-{
-    public function mask(array $data, array $sensitiveKeys = ['apiKey', 'password']): array;
-}
-```
-
-### 6.3 No Rate Limiting on Client Side
-
-**Problem**: The SDK has no client-side rate limiting. A bug in user code could rapidly exhaust API quotas.
-
-**Recommendation**: Add optional rate limiting:
-
-```php
-$provider = new OpenAIProvider($apiKey, config: new OpenAIConfig(
-    rateLimiter: new TokenBucketRateLimiter(
-        requestsPerMinute: 60,
-        tokensPerMinute: 90000,
-    ),
-));
-```
+11. **Consider DI-based configuration** alongside static API
+12. **Extract response parsers** from provider classes
+13. **Add integration test suite** with mocked HTTP
+14. **Implement partial stream recovery**
+15. **Add conversation memory management** utilities
 
 ---
 
-## 7. Testing Gaps
+## Positive Highlights
 
-### 7.1 Missing Integration Tests
+The codebase demonstrates several excellent practices:
 
-**Current State**: Only unit tests exist. No integration tests against real APIs.
-
-**Recommendation**: Add integration test suite (marked to skip in CI without API keys):
-
-```php
-/**
- * @group integration
- * @requires env OPENAI_API_KEY
- */
-class OpenAIIntegrationTest extends TestCase
-{
-    public function testRealApiCall(): void
-    {
-        $provider = new OpenAIProvider(getenv('OPENAI_API_KEY'));
-        $result = $provider->generateText([new UserMessage('Say hello')]);
-        $this->assertNotEmpty($result->text);
-    }
-}
-```
-
-### 7.2 Missing Edge Case Tests
-
-- Empty message array handling
-- Very long prompts (context window limits)
-- Malformed API responses
-- Network timeout scenarios
-- Concurrent request handling
-
-### 7.3 No Fuzz Testing for Schema Validation
-
-**Recommendation**: Add property-based testing for schema validation:
-
-```php
-use Eris\Generator;
-use Eris\TestTrait;
-
-class SchemaFuzzTest extends TestCase
-{
-    use TestTrait;
-
-    public function testStringSchemaHandlesAnyInput(): void
-    {
-        $this->forAll(Generator\string())->then(function ($input) {
-            $schema = Schema::string();
-            // Should not throw, should return valid ValidationResult
-            $result = $schema->validate($input);
-            $this->assertInstanceOf(ValidationResult::class, $result);
-        });
-    }
-}
-```
-
-### 7.4 FakeProvider Should Match Real Provider Behavior More Closely
-
-**File**: `src/Testing/FakeProvider.php`
-
-**Problem**: FakeProvider doesn't validate that options would be valid for real providers.
-
-**Recommendation**: Add strict mode:
-
-```php
-$fake = new FakeProvider(strict: true);
-// In strict mode, validates options match real provider expectations
-```
+- **Strict typing** with `declare(strict_types=1)` everywhere
+- **Immutable value objects** using `readonly` properties
+- **Comprehensive exception hierarchy** with contextual information
+- **PSR compliance** (PSR-4, PSR-14 compatible)
+- **Testing utilities** (FakeProvider, FakeResponse) for consumer testing
+- **Event-driven architecture** for extensibility
+- **Middleware support** for cross-cutting concerns
+- **Clear API design** inspired by Vercel AI SDK
 
 ---
 
-## 8. Documentation Improvements
+## Conclusion
 
-### 8.1 Missing CHANGELOG
-
-**Recommendation**: Add `CHANGELOG.md` following Keep a Changelog format.
-
-### 8.2 Missing UPGRADE Guide
-
-**Recommendation**: When making breaking changes, provide `UPGRADE.md` with migration instructions.
-
-### 8.3 README Could Use More Examples
-
-Specific gaps:
-- Multi-turn conversation example
-- Error handling best practices
-- Testing with FakeProvider full example
-- Streaming with error handling
-
-### 8.4 Missing PHPDoc on Many Public Methods
-
-**Example** (`src/Core/Schema/ObjectSchema.php`):
-```php
-public function additionalProperties(bool $allow): static
-{
-    // No PHPDoc explaining what this does
-}
-```
-
-### 8.5 Add Architecture Documentation
-
-**Recommendation**: Add `docs/ARCHITECTURE.md` explaining:
-- Component relationships
-- Data flow diagrams
-- Extension points
-- Design decisions rationale
-
----
-
-## 9. Performance Considerations
-
-### 9.1 Schema Reflection Could Be Cached
-
-**File**: `src/Core/Schema/Schema.php:108-127`
-
-```php
-public static function fromClass(string $className): ObjectSchema
-{
-    $ref = new ReflectionClass($className);
-    // Reflection is done every time
-}
-```
-
-**Recommendation**: Add schema caching:
-
-```php
-private static array $schemaCache = [];
-
-public static function fromClass(string $className): ObjectSchema
-{
-    if (!isset(self::$schemaCache[$className])) {
-        self::$schemaCache[$className] = self::buildSchemaFromClass($className);
-    }
-    return clone self::$schemaCache[$className];
-}
-```
-
-### 9.2 Consider Connection Pooling
-
-**File**: `src/Http/GuzzleHttpClient.php`
-
-**Current**: New Guzzle client per provider instance.
-
-**Recommendation**: For high-throughput scenarios, consider connection pooling:
-
-```php
-class ConnectionPool
-{
-    private static array $clients = [];
-
-    public static function getClient(string $baseUrl): Client
-    {
-        // Return existing client for same host
-    }
-}
-```
-
-### 9.3 JSON Encoding/Decoding Could Be Optimized
-
-Multiple places decode JSON then re-encode it. Consider using streaming JSON parsing for large responses.
-
----
-
-## 10. Positive Highlights
-
-### What's Done Well
-
-1. **Modern PHP Features**: Excellent use of PHP 8.1+ features including:
-   - Readonly classes and properties
-   - Enums for type-safe constants
-   - Union types
-   - Named arguments
-   - Constructor property promotion
-
-2. **Clean Architecture**: Good separation of concerns:
-   - Providers are self-contained
-   - Core functions are well-abstracted
-   - Testing utilities are comprehensive
-
-3. **API Design**: The `AI::generateText()` facade is intuitive and matches the Vercel AI SDK mental model.
-
-4. **Testing Infrastructure**: The `FakeProvider` and `AITestCase` utilities make testing user code much easier.
-
-5. **Event System**: PSR-14 compliance allows clean observability without coupling.
-
-6. **Error Handling Structure**: The exception hierarchy provides good granularity for different error types.
-
-7. **Documentation**: The README is comprehensive with practical examples.
-
-8. **Type Safety**: Good use of PHPDoc annotations for static analysis tools.
-
-9. **Streaming Support**: Well-implemented streaming with generators - memory efficient.
-
-10. **Multi-Provider Support**: Clean abstraction allows switching providers easily.
-
----
-
-## Summary of Recommendations by Priority
-
-### Critical (Fix Before Production)
-- [ ] Move Google API key from URL to header
-- [ ] Fix duplicate final chunk streaming bug
-- [ ] Add `declare(strict_types=1)` to all files
-
-### High Priority
-- [ ] Add model parameter to provider methods
-- [ ] Unify exception hierarchy
-- [ ] Add connection error recovery for streaming
-- [ ] Add tool return validation
-
-### Medium Priority
-- [ ] Create option DTOs
-- [ ] Extract message formatters
-- [ ] Add middleware support
-- [ ] Create model registry
-- [ ] Improve thread safety
-
-### Low Priority (Nice to Have)
-- [ ] Add fluent builder API
-- [ ] Add schema caching
-- [ ] Add rate limiting
-- [ ] Add integration tests
-- [ ] Expand documentation
-
----
-
-*This review was conducted on the codebase as of commit 320a953. Recommendations are based on common PHP best practices, SOLID principles, and comparison with similar SDKs in other languages.*
+The PHP AI SDK is a professionally-developed library with a solid foundation. The issues identified are addressable and don't represent fundamental design flaws. Addressing the critical and security issues before production use will result in a robust, reliable SDK for AI integration in PHP applications.

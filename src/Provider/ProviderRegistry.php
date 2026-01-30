@@ -9,6 +9,30 @@ use SageGrids\PhpAiSdk\Provider\Exception\ProviderNotFoundException;
 
 /**
  * Registry for managing AI providers.
+ *
+ * This class uses the singleton pattern to maintain a global registry of
+ * AI providers that can be accessed throughout the application.
+ *
+ * @warning This class uses static state (singleton) which is NOT thread-safe in
+ *          async PHP environments (Swoole, ReactPHP, Amp, Fiber-based concurrency).
+ *          The singleton instance and its registered providers are shared across all
+ *          coroutines/fibers, which can lead to race conditions when registering,
+ *          modifying, or clearing providers during concurrent request handling.
+ *
+ *          For concurrent request handling in async environments, use {@see \SageGrids\PhpAiSdk\AIContext}
+ *          with dependency injection instead. AIContext provides an instance-based
+ *          provider registry that is isolated per request/coroutine. Example:
+ *
+ *          ```php
+ *          // Async-safe approach with AIContext
+ *          $context = new \SageGrids\PhpAiSdk\AIContext();
+ *          $context->registry()->register('openai', new OpenAIProvider($apiKey));
+ *
+ *          // Each concurrent request gets its own isolated context
+ *          $provider = $context->provider('openai');
+ *          ```
+ *
+ * @see \SageGrids\PhpAiSdk\AIContext For thread-safe, instance-based provider management.
  */
 final class ProviderRegistry
 {

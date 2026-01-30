@@ -428,9 +428,10 @@
               3
             ],
             "details": "Add docblock warnings to src/AIConfig.php and src/Provider/ProviderRegistry.php about thread safety issues with current static state in async PHP environments (Swoole, ReactPHP, Amp). Document: '@warning This class uses static state which is not thread-safe in async PHP environments. For concurrent request handling, consider using AIContext with dependency injection instead.' Design (but don't fully implement) src/AIContext.php class with instance-based provider registry and config: class AIContext { private ProviderRegistry $registry; private AIConfig $config; public function __construct() { $this->registry = new ProviderRegistry(); $this->config = new AIConfig(); } public function provider(string $name): ProviderInterface { return $this->registry->get($name); } }. Add example usage in docblocks showing DI pattern for async environments.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Documentation review: verify warnings present in static classes. Code review: verify AIContext class design is sound for future implementation. Unit tests for AIContext class if implemented. No behavioral changes to existing code - purely additive design work.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-01-30T03:10:27.639Z"
           },
           {
             "id": 13,
@@ -523,12 +524,12 @@
             "parentId": "undefined"
           }
         ],
-        "updatedAt": "2026-01-30T01:18:09.808Z"
+        "updatedAt": "2026-01-30T03:10:27.639Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-01-30T01:18:09.808Z",
+      "lastModified": "2026-01-30T03:10:27.639Z",
       "taskCount": 15,
       "completedCount": 14,
       "tags": [

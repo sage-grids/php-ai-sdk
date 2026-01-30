@@ -98,30 +98,50 @@ $result = generateText([
 
 ---
 
-### 3. Memory Growth in Tool Roundtrips
+### 3. ~~Memory Growth in Tool Roundtrips~~ (RESOLVED)
 
 **Severity:** MEDIUM-HIGH
-**File:** `src/Core/Functions/GenerateText.php:59-93`
+**File:** `src/Core/Functions/GenerateText.php`
+**Status:** RESOLVED - Implemented `maxMessages` limit with warning events
 
-The `while (true)` loop in `execute()` accumulates messages without bounds.
+The tool execution loop now enforces configurable message limits to prevent unbounded memory growth.
 
+**Solution Implemented:**
+- **maxMessages option**: Configurable limit on total messages during tool roundtrips
+- **AIConfig::setMaxMessages()**: Global default (100 messages)
+- **Per-request override**: Via `TextGenerationOptions::maxMessages`
+- **Warning event**: `MemoryLimitWarning` dispatched at 80% of limit
+- **Exception**: `MemoryLimitExceededException` thrown when limit exceeded
+
+**Usage Example:**
 ```php
-while (true) {
-    $result = $this->provider->generateText(...);
-    // ...
-    $messages = $this->executeToolsAndContinue($messages, $result);  // Grows each iteration
-}
+use SageGrids\PhpAiSdk\AIConfig;
+use SageGrids\PhpAiSdk\Event\Events\MemoryLimitWarning;
+
+// Set global default
+AIConfig::setMaxMessages(50);
+
+// Or per-request
+$result = generateText([
+    'model' => 'openai/gpt-4o',
+    'prompt' => 'Complex task',
+    'tools' => [$myTool],
+    'maxMessages' => 100,
+]);
+
+// Listen for warnings
+$dispatcher->addListener(MemoryLimitWarning::class, function ($event) {
+    logger()->warning("Approaching limit: {$event->usagePercentage}%");
+});
 ```
 
-**Impact:**
-- Messages array grows with each tool roundtrip
-- No memory limit protection
-- Long-running tool conversations could exhaust memory
-
-**Recommendation:**
-- Add configurable memory/message count limits
-- Implement message summarization or pruning for long conversations
-- Add warning when approaching limits
+**Files Added/Modified:**
+- `src/Exception/MemoryLimitExceededException.php` (new)
+- `src/Event/Events/MemoryLimitWarning.php` (new)
+- `src/AIConfig.php` (added maxMessages)
+- `src/Core/Options/TextGenerationOptions.php` (added maxMessages)
+- `src/Core/Functions/AbstractGenerationFunction.php` (added maxMessages parsing)
+- `src/Core/Functions/GenerateText.php` (enforces limit)
 
 ---
 

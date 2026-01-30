@@ -32,6 +32,7 @@ final readonly class TextGenerationOptions
      * @param callable|null $onFinish Callback when generation completes.
      * @param int|null $maxToolRoundtrips Maximum number of tool calling roundtrips.
      * @param ToolExecutionPolicy|null $toolExecutionPolicy Security policy for tool execution.
+     * @param int|null $maxMessages Maximum messages allowed during tool roundtrips (prevents memory growth).
      */
     public function __construct(
         public string|ProviderInterface|null $model = null,
@@ -48,6 +49,7 @@ final readonly class TextGenerationOptions
         public mixed $onFinish = null,
         public ?int $maxToolRoundtrips = null,
         public ?ToolExecutionPolicy $toolExecutionPolicy = null,
+        public ?int $maxMessages = null,
     ) {
     }
 
@@ -73,6 +75,7 @@ final readonly class TextGenerationOptions
             onFinish: $options['onFinish'] ?? null,
             maxToolRoundtrips: isset($options['maxToolRoundtrips']) ? (int) $options['maxToolRoundtrips'] : null,
             toolExecutionPolicy: $options['toolExecutionPolicy'] ?? null,
+            maxMessages: isset($options['maxMessages']) ? (int) $options['maxMessages'] : null,
         );
     }
 
@@ -126,6 +129,9 @@ final readonly class TextGenerationOptions
         }
         if ($this->toolExecutionPolicy !== null) {
             $result['toolExecutionPolicy'] = $this->toolExecutionPolicy;
+        }
+        if ($this->maxMessages !== null) {
+            $result['maxMessages'] = $this->maxMessages;
         }
 
         return $result;

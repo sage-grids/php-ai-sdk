@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use Exception;
 use PHPUnit\Framework\TestCase;
 use SageGrids\PhpAiSdk\Event\Events\ErrorOccurred;
+use SageGrids\PhpAiSdk\Event\Events\MemoryLimitWarning;
 use SageGrids\PhpAiSdk\Event\Events\RequestCompleted;
 use SageGrids\PhpAiSdk\Event\Events\RequestStarted;
 use SageGrids\PhpAiSdk\Event\Events\StreamChunkReceived;
@@ -282,5 +283,52 @@ final class EventsTest extends TestCase
         $this->assertEquals('openai', $event->provider);
         $this->assertNull($event->model);
         $this->assertEquals('generateObject', $event->operation);
+    }
+
+    // MemoryLimitWarning Tests
+
+    public function testMemoryLimitWarningCreate(): void
+    {
+        $event = MemoryLimitWarning::create(80, 100, 3);
+
+        $this->assertEquals(80, $event->currentMessageCount);
+        $this->assertEquals(100, $event->maxMessages);
+        $this->assertEquals(3, $event->roundtripCount);
+        $this->assertEquals(80.0, $event->usagePercentage);
+        $this->assertInstanceOf(DateTimeImmutable::class, $event->timestamp);
+    }
+
+    public function testMemoryLimitWarningUsagePercentage(): void
+    {
+        $event = MemoryLimitWarning::create(75, 100, 2);
+        $this->assertEquals(75.0, $event->usagePercentage);
+
+        $event2 = MemoryLimitWarning::create(90, 100, 4);
+        $this->assertEquals(90.0, $event2->usagePercentage);
+    }
+
+    public function testMemoryLimitWarningIsCritical(): void
+    {
+        $event = MemoryLimitWarning::create(85, 100, 3);
+        $this->assertFalse($event->isCritical()); // Default threshold is 90
+
+        $event2 = MemoryLimitWarning::create(95, 100, 4);
+        $this->assertTrue($event2->isCritical());
+
+        // Custom threshold
+        $this->assertTrue($event->isCritical(80.0));
+        $this->assertFalse($event->isCritical(90.0));
+    }
+
+    public function testMemoryLimitWarningConstructor(): void
+    {
+        $timestamp = new DateTimeImmutable('2024-01-01 12:00:00');
+        $event = new MemoryLimitWarning(50, 100, 2, 50.0, $timestamp);
+
+        $this->assertEquals(50, $event->currentMessageCount);
+        $this->assertEquals(100, $event->maxMessages);
+        $this->assertEquals(2, $event->roundtripCount);
+        $this->assertEquals(50.0, $event->usagePercentage);
+        $this->assertSame($timestamp, $event->timestamp);
     }
 }

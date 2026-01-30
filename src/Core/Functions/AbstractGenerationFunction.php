@@ -12,6 +12,7 @@ use SageGrids\PhpAiSdk\Core\Tool\Tool;
 use SageGrids\PhpAiSdk\Core\Tool\ToolExecutionPolicy;
 use SageGrids\PhpAiSdk\Event\EventDispatcherInterface;
 use SageGrids\PhpAiSdk\Event\Events\ErrorOccurred;
+use SageGrids\PhpAiSdk\Event\Events\MemoryLimitWarning;
 use SageGrids\PhpAiSdk\Event\Events\RequestCompleted;
 use SageGrids\PhpAiSdk\Event\Events\RequestStarted;
 use SageGrids\PhpAiSdk\Event\Events\StreamChunkReceived;
@@ -61,6 +62,8 @@ abstract class AbstractGenerationFunction
 
     protected int $maxToolRoundtrips;
 
+    protected int $maxMessages;
+
     protected ?ToolExecutionPolicy $toolExecutionPolicy;
 
     protected EventDispatcherInterface $eventDispatcher;
@@ -105,6 +108,10 @@ abstract class AbstractGenerationFunction
 
         // Max tool roundtrips
         $this->maxToolRoundtrips = $this->options['maxToolRoundtrips'] ?? AIConfig::getMaxToolRoundtrips();
+
+        // Max messages (memory limit protection) - must be at least 1 to avoid division by zero
+        $maxMessages = $this->options['maxMessages'] ?? AIConfig::getMaxMessages();
+        $this->maxMessages = max(1, (int) $maxMessages);
 
         // Tool execution policy
         $this->toolExecutionPolicy = $this->options['toolExecutionPolicy'] ?? null;
@@ -375,6 +382,23 @@ abstract class AbstractGenerationFunction
                 $this->provider->getName(),
                 $this->model,
                 $this->getOperationName(),
+            )
+        );
+    }
+
+    /**
+     * Dispatch a MemoryLimitWarning event.
+     *
+     * @param int $currentMessageCount Current number of messages.
+     * @param int $roundtripCount Current roundtrip count.
+     */
+    protected function dispatchMemoryLimitWarning(int $currentMessageCount, int $roundtripCount): void
+    {
+        $this->eventDispatcher->dispatch(
+            MemoryLimitWarning::create(
+                $currentMessageCount,
+                $this->maxMessages,
+                $roundtripCount,
             )
         );
     }

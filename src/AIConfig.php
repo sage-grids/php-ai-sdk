@@ -51,6 +51,9 @@ final class AIConfig
     /** @var int Default max tool roundtrips */
     private static int $maxToolRoundtrips = 5;
 
+    /** @var int Default max messages limit to prevent unbounded memory growth */
+    private static int $maxMessages = 100;
+
     /** @var EventDispatcherInterface Event dispatcher for lifecycle events */
     private static ?EventDispatcherInterface $eventDispatcher = null;
 
@@ -142,6 +145,28 @@ final class AIConfig
     }
 
     /**
+     * Set the default max messages limit.
+     *
+     * This limits the total number of messages that can accumulate during
+     * tool roundtrips, preventing unbounded memory growth in long-running
+     * conversations.
+     *
+     * @param int $maxMessages Maximum number of messages allowed (must be > 0).
+     */
+    public static function setMaxMessages(int $maxMessages): void
+    {
+        self::$maxMessages = max(1, $maxMessages);
+    }
+
+    /**
+     * Get the default max messages limit.
+     */
+    public static function getMaxMessages(): int
+    {
+        return self::$maxMessages;
+    }
+
+    /**
      * Set the event dispatcher for lifecycle events.
      *
      * @param EventDispatcherInterface $dispatcher The event dispatcher to use.
@@ -218,6 +243,7 @@ final class AIConfig
         self::$defaults = [];
         self::$timeout = 30;
         self::$maxToolRoundtrips = 5;
+        self::$maxMessages = 100;
         self::$eventDispatcher = null;
     }
 }

@@ -11,6 +11,7 @@ use SageGrids\PhpAiSdk\Core\Options\TextGenerationOptions;
 use SageGrids\PhpAiSdk\Core\Tool\Tool;
 use SageGrids\PhpAiSdk\Core\Tool\ToolExecutor;
 use SageGrids\PhpAiSdk\Core\Tool\ToolRegistry;
+use SageGrids\PhpAiSdk\Exception\MemoryLimitExceededException;
 use SageGrids\PhpAiSdk\Result\FinishReason;
 use SageGrids\PhpAiSdk\Result\TextResult;
 use SageGrids\PhpAiSdk\Result\ToolCall;
@@ -44,6 +45,8 @@ final class GenerateText extends AbstractGenerationFunction
 
     /**
      * Execute the text generation.
+     *
+     * @throws MemoryLimitExceededException When message count exceeds maxMessages limit.
      */
     public function execute(): TextResult
     {
@@ -55,8 +58,25 @@ final class GenerateText extends AbstractGenerationFunction
         try {
             $messages = $this->messages;
             $roundtrip = 0;
+            $warningDispatched = false;
 
             while (true) {
+                // Check memory limit before making API call
+                $messageCount = count($messages);
+                if ($messageCount > $this->maxMessages) {
+                    throw MemoryLimitExceededException::messageLimitExceeded(
+                        $messageCount,
+                        $this->maxMessages,
+                        $roundtrip,
+                    );
+                }
+
+                // Dispatch warning at 80% of limit (only once)
+                if (!$warningDispatched && $messageCount >= $this->maxMessages * 0.8) {
+                    $this->dispatchMemoryLimitWarning($messageCount, $roundtrip);
+                    $warningDispatched = true;
+                }
+
                 $result = $this->provider->generateText(
                     messages: $messages,
                     model: $this->model,

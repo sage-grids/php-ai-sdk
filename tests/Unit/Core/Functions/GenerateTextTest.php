@@ -11,6 +11,7 @@ use SageGrids\PhpAiSdk\Core\Message\UserMessage;
 use SageGrids\PhpAiSdk\Core\Schema\Schema;
 use SageGrids\PhpAiSdk\Core\Tool\Tool;
 use SageGrids\PhpAiSdk\Exception\InputValidationException;
+use SageGrids\PhpAiSdk\Exception\MemoryLimitExceededException;
 use SageGrids\PhpAiSdk\Provider\ProviderRegistry;
 use SageGrids\PhpAiSdk\Provider\TextProviderInterface;
 use SageGrids\PhpAiSdk\Result\FinishReason;
@@ -251,5 +252,109 @@ final class GenerateTextTest extends TestCase
         GenerateText::create([
             'model' => 'test/gpt-4',
         ]);
+    }
+
+    public function testMaxMessagesLimitExceeded(): void
+    {
+        $tool = Tool::create(
+            name: 'chatty_tool',
+            description: 'Creates many messages',
+            parameters: Schema::object([]),
+            execute: fn() => 'result',
+        );
+
+        // Each tool call adds 2 messages (assistant + tool response)
+        // With maxMessages=5 and starting with 1 message, should fail after 2 roundtrips
+        $loopingResult = new TextResult(
+            text: '',
+            finishReason: FinishReason::ToolCalls,
+            toolCalls: [new ToolCall('call_1', 'chatty_tool', [])],
+        );
+
+        $this->provider
+            ->shouldReceive('generateText')
+            ->andReturn($loopingResult);
+
+        $this->expectException(MemoryLimitExceededException::class);
+        $this->expectExceptionMessage('Message limit exceeded');
+
+        GenerateText::create([
+            'model' => 'test/gpt-4',
+            'prompt' => 'Test',
+            'tools' => [$tool],
+            'maxMessages' => 5,
+            'maxToolRoundtrips' => 100, // High enough to hit message limit first
+        ])->execute();
+    }
+
+    public function testMaxMessagesDefaultsFromAIConfig(): void
+    {
+        $expectedResult = new TextResult(
+            text: 'Response',
+            finishReason: FinishReason::Stop,
+        );
+
+        $this->provider
+            ->shouldReceive('generateText')
+            ->once()
+            ->andReturn($expectedResult);
+
+        // Set a custom default
+        AIConfig::setMaxMessages(50);
+
+        $result = GenerateText::create([
+            'model' => 'test/gpt-4',
+            'prompt' => 'Test',
+        ])->execute();
+
+        $this->assertEquals('Response', $result->text);
+
+        // Verify the default is respected (reset and check)
+        AIConfig::reset();
+        $this->assertEquals(100, AIConfig::getMaxMessages());
+    }
+
+    public function testMaxMessagesZeroIsCoercedToOne(): void
+    {
+        $expectedResult = new TextResult(
+            text: 'Response',
+            finishReason: FinishReason::Stop,
+        );
+
+        $this->provider
+            ->shouldReceive('generateText')
+            ->once()
+            ->andReturn($expectedResult);
+
+        // maxMessages=0 should be coerced to 1, so with 1 message it should work
+        $result = GenerateText::create([
+            'model' => 'test/gpt-4',
+            'prompt' => 'Test',
+            'maxMessages' => 0, // Invalid, will be coerced to 1
+        ])->execute();
+
+        $this->assertEquals('Response', $result->text);
+    }
+
+    public function testMaxMessagesNegativeIsCoercedToOne(): void
+    {
+        $expectedResult = new TextResult(
+            text: 'Response',
+            finishReason: FinishReason::Stop,
+        );
+
+        $this->provider
+            ->shouldReceive('generateText')
+            ->once()
+            ->andReturn($expectedResult);
+
+        // Negative maxMessages should be coerced to 1
+        $result = GenerateText::create([
+            'model' => 'test/gpt-4',
+            'prompt' => 'Test',
+            'maxMessages' => -10, // Invalid, will be coerced to 1
+        ])->execute();
+
+        $this->assertEquals('Response', $result->text);
     }
 }

@@ -324,9 +324,10 @@
               3
             ],
             "details": "Modify src/Provider/TextProviderInterface.php to add ?string $model = null as the first parameter to generateText(), streamText(), generateObject(), and streamObject() methods. Update all implementations: src/Provider/OpenAI/OpenAIProvider.php, src/Provider/Google/GoogleProvider.php, src/Provider/OpenRouter/OpenRouterProvider.php. In each implementation, use $effectiveModel = $model ?? $this->config->defaultModel to allow per-request override while falling back to configured default. Update all method calls in src/Core/Functions/ (GenerateText.php, StreamText.php, GenerateObject.php, StreamObject.php) to pass through model parameter from options array. Update method signatures: public function generateText(?string $model = null, array $messages, ?string $system = null, ...)",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Unit tests for each provider verifying: (1) model parameter overrides default, (2) null model uses config default, (3) model parameter passed correctly to API endpoint. Update existing provider tests to test both scenarios. Integration tests with different models specified per-request.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-01-29T15:16:12.429Z"
           },
           {
             "id": 5,
@@ -336,9 +337,10 @@
               3
             ],
             "details": "Currently src/Provider/OpenAI/Exception/OpenAIException.php extends RuntimeException, not src/Exception/ProviderException.php. Update OpenAIException, GoogleException, and OpenRouterException to extend ProviderException instead. Modify constructors to auto-inject provider name: OpenAIException constructor should call parent::__construct($message, 'openai', $model, $statusCode, ...). Update all provider-specific exception subclasses (AuthenticationException, RateLimitException, etc.) to pass provider name through parent. Update fromResponse() factory methods to maintain compatibility. This enables single catch path: try { AI::generateText([...]); } catch (ProviderException $e) { // handles all providers }. Ensure backward compatibility by keeping provider-specific exception classes.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Unit tests verifying: (1) OpenAIException instanceof ProviderException, (2) provider name auto-populated, (3) catch (ProviderException $e) catches all provider exceptions, (4) specific provider exceptions still catchable, (5) existing error handling code continues to work. Test exception hierarchy with multi-provider scenarios.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-01-29T15:16:12.434Z"
           },
           {
             "id": 6,
@@ -348,9 +350,10 @@
               3
             ],
             "details": "In src/Http/GuzzleHttpClient.php:83-85, add connection-error-only retry logic to stream() method. Create private method isRetryableConnectionError(RequestException $e): bool that returns true only for connection errors (ConnectException, timeout before data transfer) and false if any response data received. Add retry logic: if (isRetryableConnectionError($e) && $retryCount < $maxRetries), retry the stream request. Do NOT retry mid-stream as noted in existing comment - only retry if no data has been transmitted yet (safe to retry). Use exponential backoff for retries. Document in docblock that retries only occur for pre-data connection failures.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Unit tests with mock Guzzle client: (1) connection failure before data -> retries, (2) error after data received -> throws immediately, (3) max retries exceeded -> throws, (4) successful retry -> returns stream. Integration test with flaky network conditions. Verify no data duplication in retry scenarios.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-01-29T15:16:12.435Z"
           },
           {
             "id": 7,
@@ -516,12 +519,12 @@
             "parentId": "undefined"
           }
         ],
-        "updatedAt": "2026-01-29T11:57:50.393Z"
+        "updatedAt": "2026-01-29T15:16:12.435Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-01-29T11:57:50.393Z",
+      "lastModified": "2026-01-29T15:16:12.435Z",
       "taskCount": 15,
       "completedCount": 14,
       "tags": [

@@ -27,7 +27,7 @@ final class ExceptionTest extends TestCase
     public function testFromResponseCreatesAuthenticationException(): void
     {
         $response = ['error' => ['message' => 'Invalid API key']];
-        $exception = OpenRouterException::fromResponse(401, $response);
+        $exception = OpenRouterException::fromApiResponse(401, $response);
 
         $this->assertInstanceOf(AuthenticationException::class, $exception);
         $this->assertEquals('Invalid API key', $exception->getMessage());
@@ -37,7 +37,7 @@ final class ExceptionTest extends TestCase
     public function testFromResponseCreatesRateLimitException(): void
     {
         $response = ['error' => ['message' => 'Rate limit exceeded']];
-        $exception = OpenRouterException::fromResponse(429, $response);
+        $exception = OpenRouterException::fromApiResponse(429, $response);
 
         $this->assertInstanceOf(RateLimitException::class, $exception);
         $this->assertEquals('Rate limit exceeded', $exception->getMessage());
@@ -46,7 +46,7 @@ final class ExceptionTest extends TestCase
     public function testFromResponseCreatesInvalidRequestException(): void
     {
         $response = ['error' => ['message' => 'Invalid request']];
-        $exception = OpenRouterException::fromResponse(400, $response);
+        $exception = OpenRouterException::fromApiResponse(400, $response);
 
         $this->assertInstanceOf(InvalidRequestException::class, $exception);
         $this->assertEquals('Invalid request', $exception->getMessage());
@@ -55,7 +55,7 @@ final class ExceptionTest extends TestCase
     public function testFromResponseCreatesInsufficientCreditsException(): void
     {
         $response = ['error' => ['message' => 'Insufficient credits']];
-        $exception = OpenRouterException::fromResponse(402, $response);
+        $exception = OpenRouterException::fromApiResponse(402, $response);
 
         $this->assertInstanceOf(InsufficientCreditsException::class, $exception);
         $this->assertEquals('Insufficient credits', $exception->getMessage());
@@ -64,7 +64,7 @@ final class ExceptionTest extends TestCase
     public function testFromResponseCreatesNotFoundException(): void
     {
         $response = ['error' => ['message' => 'Model not found']];
-        $exception = OpenRouterException::fromResponse(404, $response);
+        $exception = OpenRouterException::fromApiResponse(404, $response);
 
         $this->assertInstanceOf(NotFoundException::class, $exception);
         $this->assertEquals('Model not found', $exception->getMessage());
@@ -73,7 +73,7 @@ final class ExceptionTest extends TestCase
     public function testFromResponseCreatesTimeoutException(): void
     {
         $response = ['error' => ['message' => 'Request timed out']];
-        $exception = OpenRouterException::fromResponse(408, $response);
+        $exception = OpenRouterException::fromApiResponse(408, $response);
 
         $this->assertInstanceOf(TimeoutException::class, $exception);
         $this->assertEquals('Request timed out', $exception->getMessage());
@@ -85,7 +85,7 @@ final class ExceptionTest extends TestCase
 
         foreach ($statusCodes as $statusCode) {
             $response = ['error' => ['message' => 'Server error']];
-            $exception = OpenRouterException::fromResponse($statusCode, $response);
+            $exception = OpenRouterException::fromApiResponse($statusCode, $response);
 
             $this->assertInstanceOf(ServerException::class, $exception);
             $this->assertEquals('Server error', $exception->getMessage());
@@ -96,7 +96,7 @@ final class ExceptionTest extends TestCase
     public function testFromResponseCreatesGenericExceptionForUnknownStatus(): void
     {
         $response = ['error' => ['message' => 'Unknown error']];
-        $exception = OpenRouterException::fromResponse(418, $response);
+        $exception = OpenRouterException::fromApiResponse(418, $response);
 
         $this->assertInstanceOf(OpenRouterException::class, $exception);
         $this->assertNotInstanceOf(AuthenticationException::class, $exception);
@@ -107,7 +107,7 @@ final class ExceptionTest extends TestCase
     public function testFromResponseUsesDefaultMessageWhenMissing(): void
     {
         $response = [];
-        $exception = OpenRouterException::fromResponse(500, $response);
+        $exception = OpenRouterException::fromApiResponse(500, $response);
 
         $this->assertEquals('Unknown OpenRouter API error', $exception->getMessage());
     }

@@ -16,7 +16,7 @@ final class ExceptionTest extends TestCase
     {
         $response = ['error' => ['message' => 'Invalid API key', 'type' => 'invalid_api_key']];
 
-        $exception = OpenAIException::fromResponse(401, $response);
+        $exception = OpenAIException::fromApiResponse(401, $response);
 
         $this->assertInstanceOf(AuthenticationException::class, $exception);
         $this->assertEquals('Invalid API key', $exception->getMessage());
@@ -28,7 +28,7 @@ final class ExceptionTest extends TestCase
     {
         $response = ['error' => ['message' => 'Rate limit exceeded', 'type' => 'rate_limit_error']];
 
-        $exception = OpenAIException::fromResponse(429, $response);
+        $exception = OpenAIException::fromApiResponse(429, $response);
 
         $this->assertInstanceOf(RateLimitException::class, $exception);
         $this->assertEquals('Rate limit exceeded', $exception->getMessage());
@@ -39,7 +39,7 @@ final class ExceptionTest extends TestCase
     {
         $response = ['error' => ['message' => 'Invalid request', 'type' => 'invalid_request_error']];
 
-        $exception = OpenAIException::fromResponse(400, $response);
+        $exception = OpenAIException::fromApiResponse(400, $response);
 
         $this->assertInstanceOf(InvalidRequestException::class, $exception);
         $this->assertEquals('Invalid request', $exception->getMessage());
@@ -49,7 +49,7 @@ final class ExceptionTest extends TestCase
     {
         $response = ['error' => ['message' => 'Model not found', 'type' => 'not_found_error']];
 
-        $exception = OpenAIException::fromResponse(404, $response);
+        $exception = OpenAIException::fromApiResponse(404, $response);
 
         $this->assertInstanceOf(NotFoundException::class, $exception);
         $this->assertEquals('Model not found', $exception->getMessage());
@@ -59,7 +59,7 @@ final class ExceptionTest extends TestCase
     {
         $response = ['error' => ['message' => 'Internal server error', 'type' => 'server_error']];
 
-        $exception = OpenAIException::fromResponse(500, $response);
+        $exception = OpenAIException::fromApiResponse(500, $response);
 
         $this->assertInstanceOf(ServerException::class, $exception);
         $this->assertEquals('Internal server error', $exception->getMessage());
@@ -69,7 +69,7 @@ final class ExceptionTest extends TestCase
     {
         $response = ['error' => ['message' => 'Bad gateway']];
 
-        $exception = OpenAIException::fromResponse(502, $response);
+        $exception = OpenAIException::fromApiResponse(502, $response);
 
         $this->assertInstanceOf(ServerException::class, $exception);
     }
@@ -78,7 +78,7 @@ final class ExceptionTest extends TestCase
     {
         $response = ['error' => ['message' => 'Service unavailable']];
 
-        $exception = OpenAIException::fromResponse(503, $response);
+        $exception = OpenAIException::fromApiResponse(503, $response);
 
         $this->assertInstanceOf(ServerException::class, $exception);
     }
@@ -87,7 +87,7 @@ final class ExceptionTest extends TestCase
     {
         $response = ['error' => ['message' => 'Gateway timeout']];
 
-        $exception = OpenAIException::fromResponse(504, $response);
+        $exception = OpenAIException::fromApiResponse(504, $response);
 
         $this->assertInstanceOf(ServerException::class, $exception);
     }
@@ -96,7 +96,7 @@ final class ExceptionTest extends TestCase
     {
         $response = ['error' => ['message' => 'Unknown error']];
 
-        $exception = OpenAIException::fromResponse(418, $response);
+        $exception = OpenAIException::fromApiResponse(418, $response);
 
         $this->assertInstanceOf(OpenAIException::class, $exception);
         $this->assertNotInstanceOf(AuthenticationException::class, $exception);
@@ -107,7 +107,7 @@ final class ExceptionTest extends TestCase
     {
         $response = ['error' => []];
 
-        $exception = OpenAIException::fromResponse(500, $response);
+        $exception = OpenAIException::fromApiResponse(500, $response);
 
         $this->assertEquals('Unknown OpenAI API error', $exception->getMessage());
     }
@@ -116,7 +116,7 @@ final class ExceptionTest extends TestCase
     {
         $response = [];
 
-        $exception = OpenAIException::fromResponse(500, $response);
+        $exception = OpenAIException::fromApiResponse(500, $response);
 
         $this->assertEquals('Unknown OpenAI API error', $exception->getMessage());
     }

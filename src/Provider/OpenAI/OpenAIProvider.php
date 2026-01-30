@@ -98,6 +98,7 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
 
     public function generateText(
         array $messages,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
@@ -108,6 +109,7 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
     ): TextResult {
         $requestBody = $this->buildChatRequest(
             messages: $messages,
+            model: $model,
             system: $system,
             maxTokens: $maxTokens,
             temperature: $temperature,
@@ -125,6 +127,7 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
 
     public function streamText(
         array $messages,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
@@ -135,6 +138,7 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
     ): Generator {
         $requestBody = $this->buildChatRequest(
             messages: $messages,
+            model: $model,
             system: $system,
             maxTokens: $maxTokens,
             temperature: $temperature,
@@ -210,6 +214,7 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
     public function generateObject(
         array $messages,
         Schema $schema,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
@@ -225,6 +230,7 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
 
         $requestBody = $this->buildChatRequest(
             messages: $messages,
+            model: $model,
             system: $effectiveSystem,
             maxTokens: $maxTokens,
             temperature: $temperature,
@@ -281,6 +287,7 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
     public function streamObject(
         array $messages,
         Schema $schema,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
@@ -296,6 +303,7 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
 
         $requestBody = $this->buildChatRequest(
             messages: $messages,
+            model: $model,
             system: $effectiveSystem,
             maxTokens: $maxTokens,
             temperature: $temperature,
@@ -435,6 +443,7 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
      */
     private function buildChatRequest(
         array $messages,
+        ?string $model,
         ?string $system,
         ?int $maxTokens,
         ?float $temperature,
@@ -445,9 +454,10 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
         bool $stream,
     ): array {
         $formattedMessages = $this->formatMessages($messages, $system);
+        $effectiveModel = $model ?? $this->config->defaultModel;
 
         $requestBody = [
-            'model' => $this->config->defaultModel,
+            'model' => $effectiveModel,
             'messages' => $formattedMessages,
         ];
 
@@ -587,7 +597,7 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
         }
 
         if (!$response->isSuccess()) {
-            throw OpenAIException::fromResponse($response->statusCode, $data);
+            throw OpenAIException::fromApiResponse($response->statusCode, $data);
         }
 
         return $data;

@@ -67,6 +67,7 @@ final class StreamObject extends AbstractGenerationFunction
             $generator = $this->provider->streamObject(
                 messages: $this->messages,
                 schema: $this->schema,
+                model: $this->model,
                 system: $effectiveSystem,
                 maxTokens: $this->maxTokens,
                 temperature: $this->temperature,

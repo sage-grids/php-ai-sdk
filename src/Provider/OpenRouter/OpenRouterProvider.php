@@ -92,6 +92,7 @@ final class OpenRouterProvider implements TextProviderInterface
 
     public function generateText(
         array $messages,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
@@ -102,6 +103,7 @@ final class OpenRouterProvider implements TextProviderInterface
     ): TextResult {
         $requestBody = $this->buildChatRequest(
             messages: $messages,
+            model: $model,
             system: $system,
             maxTokens: $maxTokens,
             temperature: $temperature,
@@ -119,6 +121,7 @@ final class OpenRouterProvider implements TextProviderInterface
 
     public function streamText(
         array $messages,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
@@ -129,6 +132,7 @@ final class OpenRouterProvider implements TextProviderInterface
     ): Generator {
         $requestBody = $this->buildChatRequest(
             messages: $messages,
+            model: $model,
             system: $system,
             maxTokens: $maxTokens,
             temperature: $temperature,
@@ -207,6 +211,7 @@ final class OpenRouterProvider implements TextProviderInterface
     public function generateObject(
         array $messages,
         Schema $schema,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
@@ -222,6 +227,7 @@ final class OpenRouterProvider implements TextProviderInterface
 
         $requestBody = $this->buildChatRequest(
             messages: $messages,
+            model: $model,
             system: $effectiveSystem,
             maxTokens: $maxTokens,
             temperature: $temperature,
@@ -281,6 +287,7 @@ final class OpenRouterProvider implements TextProviderInterface
     public function streamObject(
         array $messages,
         Schema $schema,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
@@ -296,6 +303,7 @@ final class OpenRouterProvider implements TextProviderInterface
 
         $requestBody = $this->buildChatRequest(
             messages: $messages,
+            model: $model,
             system: $effectiveSystem,
             maxTokens: $maxTokens,
             temperature: $temperature,
@@ -398,6 +406,7 @@ final class OpenRouterProvider implements TextProviderInterface
      */
     private function buildChatRequest(
         array $messages,
+        ?string $model,
         ?string $system,
         ?int $maxTokens,
         ?float $temperature,
@@ -408,9 +417,10 @@ final class OpenRouterProvider implements TextProviderInterface
         bool $stream,
     ): array {
         $formattedMessages = $this->formatMessages($messages, $system);
+        $effectiveModel = $model ?? $this->config->defaultModel;
 
         $requestBody = [
-            'model' => $this->config->defaultModel,
+            'model' => $effectiveModel,
             'messages' => $formattedMessages,
         ];
 
@@ -574,7 +584,7 @@ final class OpenRouterProvider implements TextProviderInterface
         }
 
         if (!$response->isSuccess()) {
-            throw OpenRouterException::fromResponse($response->statusCode, $data);
+            throw OpenRouterException::fromApiResponse($response->statusCode, $data);
         }
 
         return $data;

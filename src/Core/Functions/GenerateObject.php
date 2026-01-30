@@ -66,6 +66,7 @@ final class GenerateObject extends AbstractGenerationFunction
             $result = $this->provider->generateObject(
                 messages: $this->messages,
                 schema: $this->schema,
+                model: $this->model,
                 system: $effectiveSystem,
                 maxTokens: $this->maxTokens,
                 temperature: $this->temperature,

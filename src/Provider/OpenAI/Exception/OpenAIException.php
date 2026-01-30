@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace SageGrids\PhpAiSdk\Provider\OpenAI\Exception;
 
-use RuntimeException;
+use SageGrids\PhpAiSdk\Exception\ProviderException;
 
 /**
  * Base exception for OpenAI provider errors.
+ *
+ * Extends the SDK's ProviderException for unified error handling across providers.
  */
-class OpenAIException extends RuntimeException
+class OpenAIException extends ProviderException
 {
+    private const PROVIDER_NAME = 'openai';
+
     /**
      * @param array<string, mixed> $errorData Raw error data from the API response.
      */
@@ -20,7 +24,16 @@ class OpenAIException extends RuntimeException
         public readonly array $errorData = [],
         ?\Throwable $previous = null,
     ) {
-        parent::__construct($message, $code, $previous);
+        parent::__construct(
+            message: $message,
+            provider: self::PROVIDER_NAME,
+            model: null,
+            statusCode: $code > 0 ? $code : null,
+            errorDetails: $errorData,
+            requestId: null,
+            code: $code,
+            previous: $previous,
+        );
     }
 
     /**
@@ -29,11 +42,10 @@ class OpenAIException extends RuntimeException
      * @param int $statusCode HTTP status code.
      * @param array<string, mixed> $response Parsed response body.
      */
-    public static function fromResponse(int $statusCode, array $response): self
+    public static function fromApiResponse(int $statusCode, array $response): self
     {
         $error = $response['error'] ?? [];
         $message = $error['message'] ?? 'Unknown OpenAI API error';
-        $type = $error['type'] ?? null;
 
         return match ($statusCode) {
             401 => new AuthenticationException($message, $statusCode, $response),

@@ -54,6 +54,7 @@ final class GenerateText extends AbstractGenerationFunction
             while (true) {
                 $result = $this->provider->generateText(
                     messages: $messages,
+                    model: $this->model,
                     system: $this->system,
                     maxTokens: $this->maxTokens,
                     temperature: $this->temperature,

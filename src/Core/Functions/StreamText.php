@@ -45,6 +45,7 @@ final class StreamText extends AbstractGenerationFunction
         try {
             $generator = $this->provider->streamText(
                 messages: $this->messages,
+                model: $this->model,
                 system: $this->system,
                 maxTokens: $this->maxTokens,
                 temperature: $this->temperature,

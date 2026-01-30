@@ -85,6 +85,7 @@ final class GoogleProvider implements TextProviderInterface
 
     public function generateText(
         array $messages,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
@@ -104,7 +105,7 @@ final class GoogleProvider implements TextProviderInterface
             toolChoice: $toolChoice,
         );
 
-        $endpoint = $this->buildEndpoint(':generateContent');
+        $endpoint = $this->buildEndpoint(':generateContent', $model);
         $response = $this->request('POST', $endpoint, $requestBody);
 
         return $this->parseTextResponse($response);
@@ -112,6 +113,7 @@ final class GoogleProvider implements TextProviderInterface
 
     public function streamText(
         array $messages,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
@@ -131,7 +133,7 @@ final class GoogleProvider implements TextProviderInterface
             toolChoice: $toolChoice,
         );
 
-        $endpoint = $this->buildEndpoint(':streamGenerateContent');
+        $endpoint = $this->buildEndpoint(':streamGenerateContent', $model);
         // Add alt=sse for Server-Sent Events format
         $endpoint .= '?alt=sse';
 
@@ -211,6 +213,7 @@ final class GoogleProvider implements TextProviderInterface
     public function generateObject(
         array $messages,
         Schema $schema,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
@@ -239,7 +242,7 @@ final class GoogleProvider implements TextProviderInterface
             ]
         );
 
-        $endpoint = $this->buildEndpoint(':generateContent');
+        $endpoint = $this->buildEndpoint(':generateContent', $model);
         $response = $this->request('POST', $endpoint, $requestBody);
 
         /** @var list<array<string, mixed>> $candidates */
@@ -303,6 +306,7 @@ final class GoogleProvider implements TextProviderInterface
     public function streamObject(
         array $messages,
         Schema $schema,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
@@ -331,7 +335,7 @@ final class GoogleProvider implements TextProviderInterface
             ]
         );
 
-        $endpoint = $this->buildEndpoint(':streamGenerateContent');
+        $endpoint = $this->buildEndpoint(':streamGenerateContent', $model);
         $endpoint .= '?alt=sse';
 
         $request = $this->buildRequest('POST', $endpoint, $requestBody);
@@ -728,11 +732,14 @@ final class GoogleProvider implements TextProviderInterface
 
     /**
      * Build the endpoint URL with model and action.
+     *
+     * @param string $action The API action (e.g., ':generateContent').
+     * @param string|null $model Optional model override (uses config default if null).
      */
-    private function buildEndpoint(string $action): string
+    private function buildEndpoint(string $action, ?string $model = null): string
     {
-        $model = $this->config->defaultModel;
-        return "/v1beta/models/{$model}{$action}";
+        $effectiveModel = $model ?? $this->config->defaultModel;
+        return "/v1beta/models/{$effectiveModel}{$action}";
     }
 
     /**
@@ -758,7 +765,7 @@ final class GoogleProvider implements TextProviderInterface
         }
 
         if (!$response->isSuccess()) {
-            throw GoogleException::fromResponse($response->statusCode, $data);
+            throw GoogleException::fromApiResponse($response->statusCode, $data);
         }
 
         return $data;

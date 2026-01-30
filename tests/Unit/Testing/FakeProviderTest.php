@@ -170,6 +170,7 @@ final class FakeProviderTest extends TestCase
 
         $this->provider->generateText(
             [new UserMessage('Test message')],
+            null, // model
             'System prompt',
             100,
             0.7,

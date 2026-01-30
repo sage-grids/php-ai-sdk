@@ -77,28 +77,94 @@ class GuzzleHttpClient implements HttpClientInterface
         );
     }
 
+    /**
+     * Send a streaming request to the API.
+     *
+     * Includes retry logic ONLY for pre-data connection failures (e.g., DNS errors,
+     * connection timeouts, refused connections). Once any response data has been
+     * received, retries are disabled to prevent data corruption/duplication.
+     */
     public function stream(Request $request): StreamingResponse
     {
         $options = $this->buildOptions($request);
         $options[RequestOptions::STREAM] = true;
 
-        // Use streamClient WITHOUT retry middleware to prevent data corruption
-        // Once streaming starts, retrying would duplicate or corrupt data
-        try {
-            $guzzleResponse = $this->streamClient->request(
-                $request->method,
-                $request->uri,
-                $options
-            );
-        } catch (RequestException $e) {
-            if ($e->hasResponse()) {
-                $guzzleResponse = $e->getResponse();
-            } else {
+        $retryCount = 0;
+        $lastException = null;
+
+        while ($retryCount <= $this->maxRetries) {
+            try {
+                // Use streamClient WITHOUT retry middleware to prevent data corruption
+                // Once streaming starts, retrying would duplicate or corrupt data
+                $guzzleResponse = $this->streamClient->request(
+                    $request->method,
+                    $request->uri,
+                    $options
+                );
+
+                return new StreamingResponse($guzzleResponse->getBody());
+            } catch (RequestException $e) {
+                // If we have a response, return it (even for error status codes)
+                if ($e->hasResponse()) {
+                    return new StreamingResponse($e->getResponse()->getBody());
+                }
+
+                // Check if this is a retryable connection error (pre-data)
+                if ($this->isRetryableConnectionError($e) && $retryCount < $this->maxRetries) {
+                    $lastException = $e;
+                    $retryCount++;
+
+                    // Exponential backoff: 1s, 2s, 4s, ...
+                    $delayMs = 1000 * (int) pow(2, $retryCount - 1);
+                    usleep($delayMs * 1000);
+                    continue;
+                }
+
                 throw $e;
             }
         }
 
-        return new StreamingResponse($guzzleResponse->getBody());
+        // Should not reach here, but throw last exception if we do
+        throw $lastException ?? new \RuntimeException('Stream request failed after retries');
+    }
+
+    /**
+     * Determine if a request exception represents a retryable connection error.
+     *
+     * Only connection errors that occur BEFORE any data transfer are retryable.
+     * This includes DNS failures, connection refused, connection timeout, etc.
+     */
+    private function isRetryableConnectionError(RequestException $e): bool
+    {
+        // ConnectException specifically represents connection failures
+        // before any data transfer (DNS, connection refused, timeout on connect)
+        if ($e instanceof ConnectException) {
+            return true;
+        }
+
+        // If there's a response, data was received - not retryable
+        if ($e->hasResponse()) {
+            return false;
+        }
+
+        // Check for common connection error messages
+        $message = strtolower($e->getMessage());
+        $connectionErrors = [
+            'connection refused',
+            'connection timed out',
+            'could not resolve host',
+            'name or service not known',
+            'network is unreachable',
+            'no route to host',
+        ];
+
+        foreach ($connectionErrors as $errorPattern) {
+            if (str_contains($message, $errorPattern)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function buildOptions(Request $request): array

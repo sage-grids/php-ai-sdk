@@ -112,7 +112,7 @@ final class AITest extends TestCase
         $this->provider
             ->shouldReceive('generateText')
             ->once()
-            ->withArgs(function ($messages, $system) {
+            ->withArgs(function ($messages, $model, $system) {
                 $this->assertEquals('You are a French translator', $system);
                 return true;
             })
@@ -134,7 +134,7 @@ final class AITest extends TestCase
         $this->provider
             ->shouldReceive('generateText')
             ->once()
-            ->withArgs(function ($messages, $system, $maxTokens, $temperature, $topP, $stopSequences) {
+            ->withArgs(function ($messages, $model, $system, $maxTokens, $temperature, $topP, $stopSequences) {
                 $this->assertEquals(100, $maxTokens);
                 $this->assertEquals(0.7, $temperature);
                 $this->assertEquals(0.9, $topP);
@@ -169,7 +169,7 @@ final class AITest extends TestCase
         $this->provider
             ->shouldReceive('generateText')
             ->once()
-            ->withArgs(function ($messages, $system, $maxTokens, $temperature, $topP, $stopSequences, $tools) {
+            ->withArgs(function ($messages, $model, $system, $maxTokens, $temperature, $topP, $stopSequences, $tools) {
                 $this->assertCount(1, $tools);
                 $this->assertEquals('get_weather', $tools[0]->name);
                 return true;
@@ -318,7 +318,7 @@ final class AITest extends TestCase
         $this->provider
             ->shouldReceive('generateText')
             ->once()
-            ->withArgs(function ($messages, $system, $maxTokens, $temperature) {
+            ->withArgs(function ($messages, $model, $system, $maxTokens, $temperature) {
                 $this->assertEquals(500, $maxTokens);
                 $this->assertEquals(0.5, $temperature);
                 return true;
@@ -430,7 +430,7 @@ final class AITest extends TestCase
         $this->provider
             ->shouldReceive('generateObject')
             ->once()
-            ->withArgs(function ($messages, $schemaArg) use ($schema) {
+            ->withArgs(function ($messages, $schemaArg, $model) use ($schema) {
                 $this->assertEquals($schema->toJsonSchema(), $schemaArg->toJsonSchema());
                 return true;
             })
@@ -480,7 +480,7 @@ final class AITest extends TestCase
         $this->provider
             ->shouldReceive('generateObject')
             ->once()
-            ->withArgs(function ($messages, $schemaArg, $system) {
+            ->withArgs(function ($messages, $schemaArg, $model, $system) {
                 $this->assertStringContainsString('Person', $system);
                 $this->assertStringContainsString('profile', $system);
                 return true;

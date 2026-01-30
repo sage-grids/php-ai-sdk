@@ -456,6 +456,7 @@ final class FakeProvider implements
      */
     public function generateText(
         array $messages,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
@@ -464,7 +465,7 @@ final class FakeProvider implements
         ?array $tools = null,
         string|Tool|null $toolChoice = null,
     ): TextResult {
-        $this->recordRequest('generateText', $messages, $system, $maxTokens, $temperature, $topP, $stopSequences, $tools, $toolChoice);
+        $this->recordRequest('generateText', $messages, $system, $maxTokens, $temperature, $topP, $stopSequences, $tools, $toolChoice, extraParams: ['model' => $model]);
 
         return $this->getNextResponse('generateText', FakeResponse::text(''));
     }
@@ -474,6 +475,7 @@ final class FakeProvider implements
      */
     public function streamText(
         array $messages,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
@@ -482,7 +484,7 @@ final class FakeProvider implements
         ?array $tools = null,
         string|Tool|null $toolChoice = null,
     ): Generator {
-        $this->recordRequest('streamText', $messages, $system, $maxTokens, $temperature, $topP, $stopSequences, $tools, $toolChoice);
+        $this->recordRequest('streamText', $messages, $system, $maxTokens, $temperature, $topP, $stopSequences, $tools, $toolChoice, extraParams: ['model' => $model]);
 
         $chunks = $this->getNextStreamResponse('streamText', FakeResponse::streamedText(['']));
 
@@ -497,13 +499,14 @@ final class FakeProvider implements
     public function generateObject(
         array $messages,
         Schema $schema,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
         ?float $topP = null,
         ?array $stopSequences = null,
     ): ObjectResult {
-        $this->recordRequest('generateObject', $messages, $system, $maxTokens, $temperature, $topP, $stopSequences, schema: $schema);
+        $this->recordRequest('generateObject', $messages, $system, $maxTokens, $temperature, $topP, $stopSequences, schema: $schema, extraParams: ['model' => $model]);
 
         return $this->getNextResponse('generateObject', FakeResponse::object([]));
     }
@@ -514,13 +517,14 @@ final class FakeProvider implements
     public function streamObject(
         array $messages,
         Schema $schema,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
         ?float $topP = null,
         ?array $stopSequences = null,
     ): Generator {
-        $this->recordRequest('streamObject', $messages, $system, $maxTokens, $temperature, $topP, $stopSequences, schema: $schema);
+        $this->recordRequest('streamObject', $messages, $system, $maxTokens, $temperature, $topP, $stopSequences, schema: $schema, extraParams: ['model' => $model]);
 
         $chunks = $this->getNextStreamResponse('streamObject', FakeResponse::streamedObject([]));
 

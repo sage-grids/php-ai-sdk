@@ -22,6 +22,7 @@ interface TextProviderInterface extends ProviderInterface
      * Generate text from messages.
      *
      * @param Message[] $messages The conversation messages.
+     * @param string|null $model Optional model override (uses provider default if null).
      * @param string|null $system Optional system message.
      * @param int|null $maxTokens Maximum tokens to generate.
      * @param float|null $temperature Sampling temperature (0-2).
@@ -32,6 +33,7 @@ interface TextProviderInterface extends ProviderInterface
      */
     public function generateText(
         array $messages,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
@@ -45,6 +47,7 @@ interface TextProviderInterface extends ProviderInterface
      * Stream text generation.
      *
      * @param Message[] $messages The conversation messages.
+     * @param string|null $model Optional model override (uses provider default if null).
      * @param string|null $system Optional system message.
      * @param int|null $maxTokens Maximum tokens to generate.
      * @param float|null $temperature Sampling temperature (0-2).
@@ -56,6 +59,7 @@ interface TextProviderInterface extends ProviderInterface
      */
     public function streamText(
         array $messages,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
@@ -70,6 +74,7 @@ interface TextProviderInterface extends ProviderInterface
      *
      * @param Message[] $messages The conversation messages.
      * @param Schema $schema The schema that defines the expected output structure.
+     * @param string|null $model Optional model override (uses provider default if null).
      * @param string|null $system Optional system message.
      * @param int|null $maxTokens Maximum tokens to generate.
      * @param float|null $temperature Sampling temperature (0-2).
@@ -79,6 +84,7 @@ interface TextProviderInterface extends ProviderInterface
     public function generateObject(
         array $messages,
         Schema $schema,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,
@@ -91,6 +97,7 @@ interface TextProviderInterface extends ProviderInterface
      *
      * @param Message[] $messages The conversation messages.
      * @param Schema $schema The schema that defines the expected output structure.
+     * @param string|null $model Optional model override (uses provider default if null).
      * @param string|null $system Optional system message.
      * @param int|null $maxTokens Maximum tokens to generate.
      * @param float|null $temperature Sampling temperature (0-2).
@@ -101,6 +108,7 @@ interface TextProviderInterface extends ProviderInterface
     public function streamObject(
         array $messages,
         Schema $schema,
+        ?string $model = null,
         ?string $system = null,
         ?int $maxTokens = null,
         ?float $temperature = null,

@@ -6,6 +6,7 @@ namespace SageGrids\PhpAiSdk\Core\Options;
 
 use SageGrids\PhpAiSdk\Core\Message\Message;
 use SageGrids\PhpAiSdk\Core\Tool\Tool;
+use SageGrids\PhpAiSdk\Core\Tool\ToolExecutionPolicy;
 use SageGrids\PhpAiSdk\Provider\ProviderInterface;
 
 /**
@@ -30,6 +31,7 @@ final readonly class TextGenerationOptions
      * @param callable|null $onChunk Callback for streaming chunks.
      * @param callable|null $onFinish Callback when generation completes.
      * @param int|null $maxToolRoundtrips Maximum number of tool calling roundtrips.
+     * @param ToolExecutionPolicy|null $toolExecutionPolicy Security policy for tool execution.
      */
     public function __construct(
         public string|ProviderInterface|null $model = null,
@@ -45,6 +47,7 @@ final readonly class TextGenerationOptions
         public mixed $onChunk = null,
         public mixed $onFinish = null,
         public ?int $maxToolRoundtrips = null,
+        public ?ToolExecutionPolicy $toolExecutionPolicy = null,
     ) {
     }
 
@@ -69,6 +72,7 @@ final readonly class TextGenerationOptions
             onChunk: $options['onChunk'] ?? null,
             onFinish: $options['onFinish'] ?? null,
             maxToolRoundtrips: isset($options['maxToolRoundtrips']) ? (int) $options['maxToolRoundtrips'] : null,
+            toolExecutionPolicy: $options['toolExecutionPolicy'] ?? null,
         );
     }
 
@@ -119,6 +123,9 @@ final readonly class TextGenerationOptions
         }
         if ($this->maxToolRoundtrips !== null) {
             $result['maxToolRoundtrips'] = $this->maxToolRoundtrips;
+        }
+        if ($this->toolExecutionPolicy !== null) {
+            $result['toolExecutionPolicy'] = $this->toolExecutionPolicy;
         }
 
         return $result;

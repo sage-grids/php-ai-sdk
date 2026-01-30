@@ -16,62 +16,85 @@ The PHP AI SDK is a well-architected library that provides a unified interface f
 
 ## Critical Issues
 
-### 1. Thread Safety: Static State is Not Thread-Safe
+### 1. ~~Thread Safety: Static State is Not Thread-Safe~~ (RESOLVED)
 
 **Severity:** HIGH
 **Files:** `src/AIConfig.php`, `src/Provider/ProviderRegistry.php`
+**Status:** RESOLVED - Implemented `AIContext` class and added documentation
 
-Both `AIConfig` and `ProviderRegistry` use static properties to store state, which is problematic in concurrent PHP environments.
+Both `AIConfig` and `ProviderRegistry` now have thread-safety warnings in their docblocks, and a new `AIContext` class provides an instance-based alternative for async PHP environments.
 
-**Problem in `AIConfig.php`:**
+**Solution Implemented:**
+- **Warning documentation**: Added `@warning` docblocks to `AIConfig` and `ProviderRegistry` explaining thread-safety concerns in Swoole, ReactPHP, Amp, and Fiber-based environments
+- **AIContext class**: New instance-based configuration class that provides:
+  - Isolated `ProviderRegistry` per context (not the global singleton)
+  - Instance-based configuration (provider, timeout, maxToolRoundtrips, etc.)
+  - Fluent interface for configuration
+  - `autoConfigureFromEnv()` for environment-based setup
+  - Compatible with dependency injection patterns
+
+**Usage Example:**
 ```php
-private static ProviderInterface|string|null $provider = null;
-private static array $defaults = [];
-private static int $timeout = 30;
+use SageGrids\PhpAiSdk\AIContext;
+
+// Create isolated context per request (async-safe)
+$context = new AIContext();
+$context->setProvider('openai/gpt-4o')
+    ->setTimeout(60)
+    ->autoConfigureFromEnv();
+
+// Each request handler gets its own isolated context
+$provider = $context->provider('openai');
 ```
 
-**Problem in `ProviderRegistry.php`:**
-```php
-private static ?self $instance = null;
-```
-
-**Impact:**
-- In PHP-FPM with opcache, static state can persist across requests
-- Different requests might interfere with each other's configuration
-- Race conditions in multi-threaded SAPI environments
-
-**Recommendation:**
-- Provide instance-based configuration option alongside static API
-- Document that static configuration should only be set once during application bootstrap
-- Consider using a dependency injection pattern for provider resolution
+**Files Added/Modified:**
+- `src/AIContext.php` (new)
+- `src/AIConfig.php` (docblock updated)
+- `src/Provider/ProviderRegistry.php` (docblock updated)
 
 ---
 
-### 2. Tool Execution Security: Arbitrary Code Execution Risk
+### 2. ~~Tool Execution Security: Arbitrary Code Execution Risk~~ (RESOLVED)
 
 **Severity:** HIGH
 **Files:** `src/Core/Functions/GenerateText.php`, `src/Core/Tool/ToolExecutor.php`
+**Status:** RESOLVED - Implemented `ToolExecutionPolicy` class
 
-The tool execution system executes functions based on AI model output without sufficient safeguards.
+The tool execution system now supports configurable security policies via `ToolExecutionPolicy`:
 
-**Current Flow:**
+**Solution Implemented:**
+- **Tool whitelisting/denylisting**: Restrict which tools can be executed via `allowTools()` and `denyTools()`
+- **Confirmation callbacks**: Add `withConfirmation()` for human/system approval before execution
+- **Argument sanitization**: Add `withArgumentSanitizer()` to transform/validate arguments
+- **Execution timeouts**: Add `withTimeout()` for PCNTL-based timeout enforcement (Unix)
+- **Flexible error handling**: Configure whether violations throw exceptions or return error results
+
+**Usage Example:**
 ```php
-// GenerateText.php:141
-$tool = $registry->get($toolCall->name);  // Tool name comes from AI
-// ...
-$toolResult = $executor->execute($tool, $toolCall);  // Arguments from AI
+use SageGrids\PhpAiSdk\Core\Tool\ToolExecutionPolicy;
+
+$policy = ToolExecutionPolicy::create()
+    ->allowTools(['get_weather', 'search_database'])
+    ->withTimeout(30)
+    ->withConfirmation(function (string $toolName, array $args) {
+        logger()->info("Tool call: $toolName", $args);
+        return !str_starts_with($toolName, 'delete_');
+    });
+
+$result = generateText([
+    'model' => 'openai/gpt-4o',
+    'prompt' => 'What is the weather?',
+    'tools' => [$weatherTool],
+    'toolExecutionPolicy' => $policy,
+]);
 ```
 
-**Risks:**
-1. AI model could attempt to call tools with unexpected names
-2. Tool arguments come directly from AI output with minimal validation
-3. No sandboxing or permission system for tool execution
-
-**Recommendation:**
-- Add explicit whitelist of allowed tool names per request
-- Implement argument sanitization before tool execution
-- Consider adding a confirmation callback for sensitive tool operations
-- Add execution timeout per tool call
+**Files Added/Modified:**
+- `src/Core/Tool/ToolExecutionPolicy.php` (new)
+- `src/Exception/ToolSecurityException.php` (new)
+- `src/Core/Tool/ToolExecutor.php` (updated)
+- `src/Core/Options/TextGenerationOptions.php` (updated)
+- `src/Core/Functions/GenerateText.php` (updated)
 
 ---
 

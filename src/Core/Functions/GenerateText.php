@@ -131,7 +131,8 @@ final class GenerateText extends AbstractGenerationFunction
             $registry->set($tool);
         }
 
-        $executor = new ToolExecutor();
+        // Create executor with security policy if configured
+        $executor = new ToolExecutor($this->toolExecutionPolicy);
 
         // Add assistant message with tool calls
         $toolCallsArray = array_map(fn(ToolCall $tc) => $tc->toArray(), $result->toolCalls);

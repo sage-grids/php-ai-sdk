@@ -9,6 +9,7 @@ use SageGrids\PhpAiSdk\Core\Message\Message;
 use SageGrids\PhpAiSdk\Core\Message\UserMessage;
 use SageGrids\PhpAiSdk\Core\Schema\Schema;
 use SageGrids\PhpAiSdk\Core\Tool\Tool;
+use SageGrids\PhpAiSdk\Core\Tool\ToolExecutionPolicy;
 use SageGrids\PhpAiSdk\Event\EventDispatcherInterface;
 use SageGrids\PhpAiSdk\Event\Events\ErrorOccurred;
 use SageGrids\PhpAiSdk\Event\Events\RequestCompleted;
@@ -60,6 +61,8 @@ abstract class AbstractGenerationFunction
 
     protected int $maxToolRoundtrips;
 
+    protected ?ToolExecutionPolicy $toolExecutionPolicy;
+
     protected EventDispatcherInterface $eventDispatcher;
 
     /**
@@ -102,6 +105,9 @@ abstract class AbstractGenerationFunction
 
         // Max tool roundtrips
         $this->maxToolRoundtrips = $this->options['maxToolRoundtrips'] ?? AIConfig::getMaxToolRoundtrips();
+
+        // Tool execution policy
+        $this->toolExecutionPolicy = $this->options['toolExecutionPolicy'] ?? null;
     }
 
     /**

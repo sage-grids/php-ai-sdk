@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace SageGrids\PhpAiSdk\Provider\Google;
 
 use Generator;
-use SageGrids\PhpAiSdk\Core\Message\AssistantMessage;
+use SageGrids\PhpAiSdk\Core\Message\Formatter\GeminiMessageFormatter;
+use SageGrids\PhpAiSdk\Core\Message\Formatter\MessageFormatterInterface;
 use SageGrids\PhpAiSdk\Core\Message\Message;
-use SageGrids\PhpAiSdk\Core\Message\SystemMessage;
-use SageGrids\PhpAiSdk\Core\Message\UserMessage;
 use SageGrids\PhpAiSdk\Core\Schema\Schema;
 use SageGrids\PhpAiSdk\Core\Tool\Tool;
 use SageGrids\PhpAiSdk\Http\GuzzleHttpClient;
@@ -22,6 +21,7 @@ use SageGrids\PhpAiSdk\Result\ObjectChunk;
 use SageGrids\PhpAiSdk\Result\ObjectResult;
 use SageGrids\PhpAiSdk\Result\TextChunk;
 use SageGrids\PhpAiSdk\Result\TextResult;
+use SageGrids\PhpAiSdk\Http\Middleware\HasMiddleware;
 use SageGrids\PhpAiSdk\Result\ToolCall;
 use SageGrids\PhpAiSdk\Result\Usage;
 
@@ -31,8 +31,10 @@ use SageGrids\PhpAiSdk\Result\Usage;
  */
 final class GoogleProvider implements TextProviderInterface
 {
+    use HasMiddleware;
     private HttpClientInterface $httpClient;
     private GoogleConfig $config;
+    private MessageFormatterInterface $messageFormatter;
 
     /**
      * Available Google Gemini models.
@@ -48,11 +50,13 @@ final class GoogleProvider implements TextProviderInterface
         private readonly string $apiKey,
         ?HttpClientInterface $httpClient = null,
         ?GoogleConfig $config = null,
+        ?MessageFormatterInterface $messageFormatter = null,
     ) {
         $this->config = $config ?? new GoogleConfig();
         $this->httpClient = $httpClient ?? new GuzzleHttpClient(
             timeout: $this->config->timeout,
         );
+        $this->messageFormatter = $messageFormatter ?? new GeminiMessageFormatter();
     }
 
     public function getName(): string
@@ -445,17 +449,15 @@ final class GoogleProvider implements TextProviderInterface
         ?array $tools,
         string|Tool|null $toolChoice,
     ): array {
-        $formattedMessages = $this->formatMessages($messages);
+        $formatted = $this->messageFormatter->format($messages, $system);
 
         $requestBody = [
-            'contents' => $formattedMessages,
+            'contents' => $formatted['contents'],
         ];
 
-        // System instruction goes in a separate field (not in contents)
-        if ($system !== null) {
-            $requestBody['systemInstruction'] = [
-                'parts' => [['text' => $system]],
-            ];
+        // System instruction from formatter
+        if (isset($formatted['systemInstruction'])) {
+            $requestBody['systemInstruction'] = $formatted['systemInstruction'];
         }
 
         // Build generation config
@@ -500,70 +502,6 @@ final class GoogleProvider implements TextProviderInterface
         }
 
         return $requestBody;
-    }
-
-    /**
-     * Format messages for the Gemini API.
-     *
-     * @param Message[] $messages
-     * @return array<int, array<string, mixed>>
-     */
-    private function formatMessages(array $messages): array
-    {
-        $formatted = [];
-
-        foreach ($messages as $message) {
-            // Skip system messages - they're handled via systemInstruction
-            if ($message instanceof SystemMessage) {
-                continue;
-            }
-
-            $role = match (true) {
-                $message instanceof UserMessage => 'user',
-                $message instanceof AssistantMessage => 'model',
-                default => 'user',
-            };
-
-            $parts = [];
-            /** @var string|array<mixed>|null $content */
-            $content = $message->toArray()['content'] ?? '';
-
-            // Handle multimodal content
-            if (is_array($content)) {
-                foreach ($content as $contentPart) {
-                    if (is_array($contentPart) && isset($contentPart['type'])) {
-                        if ($contentPart['type'] === 'text' && isset($contentPart['text'])) {
-                            $parts[] = ['text' => (string) $contentPart['text']];
-                        } elseif ($contentPart['type'] === 'image_url') {
-                            // Convert image URL to inline data format
-                            $imageUrl = (string) ($contentPart['image_url']['url'] ?? '');
-                            if (str_starts_with($imageUrl, 'data:')) {
-                                // Base64 data URL
-                                if (preg_match('/^data:([^;]+);base64,(.+)$/', $imageUrl, $matches)) {
-                                    $parts[] = [
-                                        'inlineData' => [
-                                            'mimeType' => $matches[1],
-                                            'data' => $matches[2],
-                                        ],
-                                    ];
-                                }
-                            }
-                        }
-                    }
-                }
-            } elseif (is_string($content)) {
-                $parts[] = ['text' => $content];
-            } else {
-                $parts[] = ['text' => ''];
-            }
-
-            $formatted[] = [
-                'role' => $role,
-                'parts' => $parts,
-            ];
-        }
-
-        return $formatted;
     }
 
     /**
@@ -752,7 +690,14 @@ final class GoogleProvider implements TextProviderInterface
     private function request(string $method, string $endpoint, array $body): array
     {
         $request = $this->buildRequest($method, $endpoint, $body);
-        $response = $this->httpClient->request($request);
+
+        // Execute with middleware if configured
+        if ($this->hasMiddleware()) {
+            $pipeline = $this->getMiddlewarePipeline();
+            $response = $pipeline->execute($request, fn ($req) => $this->httpClient->request($req));
+        } else {
+            $response = $this->httpClient->request($request);
+        }
 
         $data = json_decode($response->body, true);
 

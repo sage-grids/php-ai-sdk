@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace SageGrids\PhpAiSdk\Core\Functions;
 
+use SageGrids\PhpAiSdk\Core\Options\ObjectGenerationOptions;
 use SageGrids\PhpAiSdk\Core\Schema\Schema;
 use SageGrids\PhpAiSdk\Result\ObjectResult;
 
@@ -19,10 +20,14 @@ final class GenerateObject extends AbstractGenerationFunction
     /**
      * Create a new GenerateObject instance.
      *
-     * @param array<string, mixed> $options
+     * @param array<string, mixed>|ObjectGenerationOptions $options
      */
-    public static function create(array $options): self
+    public static function create(array|ObjectGenerationOptions $options): self
     {
+        if ($options instanceof ObjectGenerationOptions) {
+            $options = $options->toArray();
+        }
+
         return new self($options);
     }
 

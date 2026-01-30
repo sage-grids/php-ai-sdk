@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SageGrids\PhpAiSdk\Core\Functions;
 
 use Generator;
+use SageGrids\PhpAiSdk\Core\Options\TextGenerationOptions;
 use SageGrids\PhpAiSdk\Result\TextChunk;
 
 /**
@@ -15,10 +16,14 @@ final class StreamText extends AbstractGenerationFunction
     /**
      * Create a new StreamText instance.
      *
-     * @param array<string, mixed> $options
+     * @param array<string, mixed>|TextGenerationOptions $options
      */
-    public static function create(array $options): self
+    public static function create(array|TextGenerationOptions $options): self
     {
+        if ($options instanceof TextGenerationOptions) {
+            $options = $options->toArray();
+        }
+
         return new self($options);
     }
 

@@ -363,9 +363,10 @@
               3
             ],
             "details": "In src/Core/Tool/Tool.php, add optional ?Schema $returnSchema = null parameter to constructor. Store as readonly property. In execute() method (currently at line 115-133), after calling $handler($arguments) at line 132, add validation: if ($this->returnSchema !== null) { $validation = $this->returnSchema->validate($result); if (!$validation->isValid) { throw new ToolExecutionException(\"Tool '{$this->name}' return value validation failed: \" . implode(', ', $validation->errors)); } }. Return $result after validation. Update Tool::define() static factory to accept returnSchema parameter.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Unit tests: (1) tool with valid return schema passes, (2) tool with invalid return throws ToolExecutionException, (3) tool without return schema skips validation, (4) validation error messages are descriptive. Test with various Schema types (object, array, primitive). Verify exception includes tool name and validation errors.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-01-30T01:18:09.800Z"
           },
           {
             "id": 8,
@@ -376,9 +377,10 @@
               4
             ],
             "details": "Create src/Core/Options/TextGenerationOptions.php and ObjectGenerationOptions.php as final readonly classes with typed properties: ?string $model, ?string $prompt, ?array $messages, ?string $system, ?int $maxTokens, ?float $temperature, ?float $topP, ?array $stopSequences, ?array $tools, string|Tool|null $toolChoice, ?callable $onChunk. Add static fromArray(array $options): self factory method. Update src/Core/Functions/GenerateText.php, StreamText.php, GenerateObject.php, StreamObject.php to accept array|TextGenerationOptions|ObjectGenerationOptions. Add type detection: if (is_array($options)) { $options = TextGenerationOptions::fromArray($options); }. Convert DTO to provider method arguments. Maintain full backwards compatibility - all existing array-based code continues to work.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Unit tests: (1) DTO construction with typed properties, (2) fromArray() factory correctly maps all fields, (3) existing array-based generation code works unchanged, (4) DTO-based generation code works, (5) type safety enforced for DTO properties. Integration tests with both array and DTO patterns.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-01-30T01:18:09.804Z"
           },
           {
             "id": 9,
@@ -388,9 +390,10 @@
               3
             ],
             "details": "Create src/Core/Message/Formatter/MessageFormatterInterface.php with method: format(array $messages, ?string $system): array. Extract formatting logic from src/Provider/OpenAI/OpenAIProvider.php:488-510 into src/Core/Message/Formatter/OpenAIMessageFormatter.php. Extract from src/Provider/Google/GoogleProvider.php:501-557 into GeminiMessageFormatter.php. Each formatter handles provider-specific message structure (OpenAI: [{role, content}], Gemini: {contents: [], systemInstruction: {}}). Inject formatter into providers via constructor with default: public function __construct(string $apiKey, ?HttpClientInterface $httpClient = null, ?OpenAIConfig $config = null, ?MessageFormatterInterface $formatter = null) { $this->formatter = $formatter ?? new OpenAIMessageFormatter(); }. Replace inline formatting with $this->formatter->format($messages, $system).",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Unit tests for each formatter: (1) correct provider-specific format, (2) system message handling, (3) multi-turn conversations, (4) tool messages, (5) image content. Provider tests with custom formatter injection. Ensure no behavioral changes - existing message formatting output identical.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-01-30T01:18:09.806Z"
           },
           {
             "id": 10,
@@ -400,9 +403,10 @@
               3
             ],
             "details": "Create src/Http/Middleware/MiddlewareInterface.php with method: handle(Request $request, callable $next): Response. Implement example middleware: src/Http/Middleware/LoggingMiddleware.php (logs request/response), src/Http/Middleware/CachingMiddleware.php (caches responses by request hash). Add protected array $middleware = [] to provider base classes. Add public function addMiddleware(MiddlewareInterface $middleware): self method. In provider request flow, build middleware pipeline: $handler = fn($req) => $this->httpClient->request($req); foreach (array_reverse($this->middleware) as $mw) { $handler = fn($req) => $mw->handle($req, $handler); }. Execute: $response = $handler($request). Support middleware chaining with $next() callable.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Unit tests: (1) middleware execution order, (2) $next() callable invokes next middleware, (3) LoggingMiddleware logs requests, (4) CachingMiddleware returns cached responses, (5) multiple middleware chain correctly. Integration tests with middleware stack. Verify no performance impact when middleware not used.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-01-30T01:18:09.808Z"
           },
           {
             "id": 11,
@@ -519,12 +523,12 @@
             "parentId": "undefined"
           }
         ],
-        "updatedAt": "2026-01-29T15:16:12.435Z"
+        "updatedAt": "2026-01-30T01:18:09.808Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-01-29T15:16:12.435Z",
+      "lastModified": "2026-01-30T01:18:09.808Z",
       "taskCount": 15,
       "completedCount": 14,
       "tags": [

@@ -254,4 +254,108 @@ final class ToolTest extends TestCase
 
         $this->assertSame($tool->toOpenAIFormat(), $array);
     }
+
+    public function testCreateWithReturnSchema(): void
+    {
+        $tool = Tool::create(
+            name: 'get_user',
+            description: 'Get user data',
+            parameters: Schema::object([
+                'id' => Schema::integer(),
+            ]),
+            execute: fn (array $args) => ['id' => $args['id'], 'name' => 'John'],
+            returnSchema: Schema::object([
+                'id' => Schema::integer(),
+                'name' => Schema::string(),
+            ]),
+        );
+
+        $this->assertNotNull($tool->returnSchema);
+    }
+
+    public function testExecuteWithValidReturnSchema(): void
+    {
+        $tool = Tool::create(
+            name: 'get_user',
+            description: 'Get user data',
+            parameters: Schema::object([
+                'id' => Schema::integer(),
+            ]),
+            execute: fn (array $args) => ['id' => $args['id'], 'name' => 'John'],
+            returnSchema: Schema::object([
+                'id' => Schema::integer(),
+                'name' => Schema::string(),
+            ]),
+        );
+
+        $result = $tool->execute(['id' => 42]);
+
+        $this->assertSame(['id' => 42, 'name' => 'John'], $result);
+    }
+
+    public function testExecuteThrowsOnInvalidReturnValue(): void
+    {
+        $tool = Tool::create(
+            name: 'get_user',
+            description: 'Get user data',
+            parameters: Schema::object([
+                'id' => Schema::integer(),
+            ]),
+            execute: fn (array $args) => ['id' => 'not-an-integer', 'name' => 'John'],
+            returnSchema: Schema::object([
+                'id' => Schema::integer(),
+                'name' => Schema::string(),
+            ]),
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Tool 'get_user' return value validation failed");
+
+        $tool->execute(['id' => 42]);
+    }
+
+    public function testExecuteWithoutReturnSchemaSkipsValidation(): void
+    {
+        $tool = Tool::create(
+            name: 'get_anything',
+            description: 'Get any data',
+            parameters: Schema::object([]),
+            execute: fn (array $args) => ['any' => 'value', 'number' => 123],
+        );
+
+        // Should not throw, no return schema validation
+        $result = $tool->execute([]);
+
+        $this->assertSame(['any' => 'value', 'number' => 123], $result);
+    }
+
+    public function testExecuteWithPrimitiveReturnSchema(): void
+    {
+        $tool = Tool::create(
+            name: 'get_count',
+            description: 'Get a count',
+            parameters: Schema::object([]),
+            execute: fn (array $args) => 42,
+            returnSchema: Schema::integer(),
+        );
+
+        $result = $tool->execute([]);
+
+        $this->assertSame(42, $result);
+    }
+
+    public function testExecuteWithArrayReturnSchema(): void
+    {
+        $tool = Tool::create(
+            name: 'get_numbers',
+            description: 'Get array of numbers',
+            parameters: Schema::object([]),
+            execute: fn (array $args) => [1, 2, 3, 4, 5],
+            returnSchema: Schema::array(Schema::integer()),
+        );
+
+        $result = $tool->execute([]);
+
+        $this->assertSame([1, 2, 3, 4, 5], $result);
+    }
 }

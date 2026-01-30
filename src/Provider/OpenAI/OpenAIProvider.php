@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace SageGrids\PhpAiSdk\Provider\OpenAI;
 
 use Generator;
+use SageGrids\PhpAiSdk\Core\Message\Formatter\MessageFormatterInterface;
+use SageGrids\PhpAiSdk\Core\Message\Formatter\OpenAIMessageFormatter;
 use SageGrids\PhpAiSdk\Core\Message\Message;
-use SageGrids\PhpAiSdk\Core\Message\SystemMessage;
 use SageGrids\PhpAiSdk\Core\Schema\Schema;
 use SageGrids\PhpAiSdk\Core\Tool\Tool;
 use SageGrids\PhpAiSdk\Http\GuzzleHttpClient;
@@ -23,6 +24,7 @@ use SageGrids\PhpAiSdk\Result\ObjectChunk;
 use SageGrids\PhpAiSdk\Result\ObjectResult;
 use SageGrids\PhpAiSdk\Result\TextChunk;
 use SageGrids\PhpAiSdk\Result\TextResult;
+use SageGrids\PhpAiSdk\Http\Middleware\HasMiddleware;
 use SageGrids\PhpAiSdk\Result\ToolCall;
 use SageGrids\PhpAiSdk\Result\Usage;
 
@@ -32,8 +34,10 @@ use SageGrids\PhpAiSdk\Result\Usage;
  */
 final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderInterface
 {
+    use HasMiddleware;
     private HttpClientInterface $httpClient;
     private OpenAIConfig $config;
+    private MessageFormatterInterface $messageFormatter;
 
     /**
      * Available OpenAI chat models.
@@ -61,11 +65,13 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
         private readonly string $apiKey,
         ?HttpClientInterface $httpClient = null,
         ?OpenAIConfig $config = null,
+        ?MessageFormatterInterface $messageFormatter = null,
     ) {
         $this->config = $config ?? new OpenAIConfig();
         $this->httpClient = $httpClient ?? new GuzzleHttpClient(
             timeout: $this->config->timeout,
         );
+        $this->messageFormatter = $messageFormatter ?? new OpenAIMessageFormatter();
     }
 
     public function getName(): string
@@ -453,7 +459,7 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
         string|Tool|null $toolChoice,
         bool $stream,
     ): array {
-        $formattedMessages = $this->formatMessages($messages, $system);
+        $formattedMessages = $this->messageFormatter->format($messages, $system);
         $effectiveModel = $model ?? $this->config->defaultModel;
 
         $requestBody = [
@@ -493,36 +499,6 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
         }
 
         return $requestBody;
-    }
-
-    /**
-     * Format messages for the OpenAI API.
-     *
-     * @param Message[] $messages
-     * @return array<int, array<string, mixed>>
-     */
-    private function formatMessages(array $messages, ?string $system): array
-    {
-        $formatted = [];
-
-        // Add system message if provided
-        if ($system !== null) {
-            $formatted[] = [
-                'role' => 'system',
-                'content' => $system,
-            ];
-        }
-
-        foreach ($messages as $message) {
-            // Skip system messages from the messages array if we have a system parameter
-            if ($message instanceof SystemMessage && $system !== null) {
-                continue;
-            }
-
-            $formatted[] = $message->toArray();
-        }
-
-        return $formatted;
     }
 
     /**
@@ -584,7 +560,14 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
     private function request(string $method, string $endpoint, array $body): array
     {
         $request = $this->buildRequest($method, $endpoint, $body);
-        $response = $this->httpClient->request($request);
+
+        // Execute with middleware if configured
+        if ($this->hasMiddleware()) {
+            $pipeline = $this->getMiddlewarePipeline();
+            $response = $pipeline->execute($request, fn ($req) => $this->httpClient->request($req));
+        } else {
+            $response = $this->httpClient->request($request);
+        }
 
         $data = json_decode($response->body, true);
 

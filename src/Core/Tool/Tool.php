@@ -25,6 +25,7 @@ final class Tool
         public readonly string $description,
         public readonly Schema $parameters,
         private readonly ?Closure $execute,
+        public readonly ?Schema $returnSchema = null,
     ) {
     }
 
@@ -35,18 +36,21 @@ final class Tool
      * @param string $description The tool description for the AI model.
      * @param Schema $parameters The parameter schema for validation.
      * @param callable|null $execute The function to execute when the tool is called.
+     * @param Schema|null $returnSchema Optional schema for validating return values.
      */
     public static function create(
         string $name,
         string $description,
         Schema $parameters,
         ?callable $execute = null,
+        ?Schema $returnSchema = null,
     ): self {
         return new self(
             $name,
             $description,
             $parameters,
             $execute !== null ? Closure::fromCallable($execute) : null,
+            $returnSchema,
         );
     }
 
@@ -131,7 +135,19 @@ final class Tool
         /** @var Closure $handler */
         $handler = $this->execute;
 
-        return $handler($arguments);
+        $result = $handler($arguments);
+
+        // Validate return value if returnSchema is set
+        if ($this->returnSchema !== null) {
+            $returnValidation = $this->returnSchema->validate($result);
+            if (!$returnValidation->isValid) {
+                throw new RuntimeException(
+                    "Tool '{$this->name}' return value validation failed: " . implode(', ', $returnValidation->errors)
+                );
+            }
+        }
+
+        return $result;
     }
 
     /**

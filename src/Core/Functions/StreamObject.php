@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SageGrids\PhpAiSdk\Core\Functions;
 
 use Generator;
+use SageGrids\PhpAiSdk\Core\Options\ObjectGenerationOptions;
 use SageGrids\PhpAiSdk\Core\Schema\Schema;
 use SageGrids\PhpAiSdk\Result\ObjectChunk;
 
@@ -20,10 +21,14 @@ final class StreamObject extends AbstractGenerationFunction
     /**
      * Create a new StreamObject instance.
      *
-     * @param array<string, mixed> $options
+     * @param array<string, mixed>|ObjectGenerationOptions $options
      */
-    public static function create(array $options): self
+    public static function create(array|ObjectGenerationOptions $options): self
     {
+        if ($options instanceof ObjectGenerationOptions) {
+            $options = $options->toArray();
+        }
+
         return new self($options);
     }
 

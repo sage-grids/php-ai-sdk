@@ -7,6 +7,7 @@ namespace SageGrids\PhpAiSdk\Core\Functions;
 use SageGrids\PhpAiSdk\Core\Message\AssistantMessage;
 use SageGrids\PhpAiSdk\Core\Message\Message;
 use SageGrids\PhpAiSdk\Core\Message\ToolMessage;
+use SageGrids\PhpAiSdk\Core\Options\TextGenerationOptions;
 use SageGrids\PhpAiSdk\Core\Tool\Tool;
 use SageGrids\PhpAiSdk\Core\Tool\ToolExecutor;
 use SageGrids\PhpAiSdk\Core\Tool\ToolRegistry;
@@ -22,10 +23,14 @@ final class GenerateText extends AbstractGenerationFunction
     /**
      * Create a new GenerateText instance.
      *
-     * @param array<string, mixed> $options
+     * @param array<string, mixed>|TextGenerationOptions $options
      */
-    public static function create(array $options): self
+    public static function create(array|TextGenerationOptions $options): self
     {
+        if ($options instanceof TextGenerationOptions) {
+            $options = $options->toArray();
+        }
+
         return new self($options);
     }
 

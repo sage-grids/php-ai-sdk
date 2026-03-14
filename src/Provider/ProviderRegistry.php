@@ -85,39 +85,64 @@ final class ProviderRegistry
     }
 
     /**
-     * Resolve a provider from a model string (e.g., 'openai/gpt-4o').
+     * Resolve a provider from a model string.
      *
-     * @throws InvalidModelStringException
+     * Accepts 'provider/model' format or a bare model name.
+     * When a bare model name is given, the first registered provider is used.
+     *
      * @throws ProviderNotFoundException
      */
     public function resolve(string $modelString): ProviderInterface
     {
-        $parts = explode('/', $modelString, 2);
-
-        if (count($parts) !== 2 || empty($parts[0]) || empty($parts[1])) {
-            throw new InvalidModelStringException($modelString);
+        if (str_contains($modelString, '/')) {
+            $parts = explode('/', $modelString, 2);
+            if (empty($parts[0]) || empty($parts[1])) {
+                throw new InvalidModelStringException($modelString);
+            }
+            return $this->get($parts[0]);
         }
 
-        return $this->get($parts[0]);
+        // Bare model name — use the first registered provider
+        $registered = $this->getRegisteredProviders();
+        if (empty($registered)) {
+            throw new ProviderNotFoundException('(none)');
+        }
+        return $this->get($registered[0]);
     }
 
     /**
      * Parse a model string and return both provider and model name.
+     *
+     * Accepts 'provider/model' format or a bare model name.
+     * When a bare model name is given and the registry has registered providers,
+     * the first registered provider is used. Pass $registry to enable this fallback.
      *
      * @return array{provider: string, model: string}
      * @throws InvalidModelStringException
      */
     public static function parseModelString(string $modelString): array
     {
-        $parts = explode('/', $modelString, 2);
+        if (str_contains($modelString, '/')) {
+            $parts = explode('/', $modelString, 2);
+            if (empty($parts[0]) || empty($parts[1])) {
+                throw new InvalidModelStringException($modelString);
+            }
+            return [
+                'provider' => $parts[0],
+                'model'    => $parts[1],
+            ];
+        }
 
-        if (count($parts) !== 2 || empty($parts[0]) || empty($parts[1])) {
+        // Bare model name — use the first registered provider from the singleton registry
+        $registry = self::getInstance();
+        $registered = $registry->getRegisteredProviders();
+        if (empty($registered)) {
             throw new InvalidModelStringException($modelString);
         }
 
         return [
-            'provider' => $parts[0],
-            'model' => $parts[1],
+            'provider' => $registered[0],
+            'model'    => $modelString,
         ];
     }
 

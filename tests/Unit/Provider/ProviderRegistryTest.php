@@ -85,13 +85,24 @@ final class ProviderRegistryTest extends TestCase
         $this->assertSame($provider, $resolved);
     }
 
-    public function testResolveThrowsExceptionForInvalidModelString(): void
+    public function testResolveBareModelNameUsesFirstRegisteredProvider(): void
+    {
+        $registry = ProviderRegistry::getInstance();
+        $provider = $this->createMockProvider('openai');
+        $registry->register('openai', $provider);
+
+        $resolved = $registry->resolve('gpt-4o');
+
+        $this->assertSame($provider, $resolved);
+    }
+
+    public function testResolveBareModelNameThrowsWhenNoProvidersRegistered(): void
     {
         $registry = ProviderRegistry::getInstance();
 
-        $this->expectException(InvalidModelStringException::class);
+        $this->expectException(ProviderNotFoundException::class);
 
-        $registry->resolve('invalid-model-string');
+        $registry->resolve('gpt-4o');
     }
 
     public function testResolveThrowsExceptionForEmptyProvider(): void
@@ -126,6 +137,24 @@ final class ProviderRegistryTest extends TestCase
 
         $this->assertEquals('openrouter', $result['provider']);
         $this->assertEquals('anthropic/claude-3-opus', $result['model']);
+    }
+
+    public function testParseModelStringBareNameUsesFirstRegisteredProvider(): void
+    {
+        $registry = ProviderRegistry::getInstance();
+        $registry->register('openai', $this->createMockProvider('openai'));
+
+        $result = ProviderRegistry::parseModelString('gpt-4o');
+
+        $this->assertEquals('openai', $result['provider']);
+        $this->assertEquals('gpt-4o', $result['model']);
+    }
+
+    public function testParseModelStringBareNameThrowsWhenNoProvidersRegistered(): void
+    {
+        $this->expectException(InvalidModelStringException::class);
+
+        ProviderRegistry::parseModelString('gpt-4o');
     }
 
     public function testGetRegisteredProviders(): void

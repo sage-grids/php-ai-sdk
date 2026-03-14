@@ -143,7 +143,8 @@ abstract class AbstractGenerationFunction
             return;
         }
 
-        // Parse model string (e.g., 'openai/gpt-4o')
+        // Parse model string — supports 'provider/model' or a bare model name.
+        // For bare model names, the first registered provider is used.
         $registry = ProviderRegistry::getInstance();
         $parsed = ProviderRegistry::parseModelString($model);
 

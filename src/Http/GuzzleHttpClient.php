@@ -30,7 +30,7 @@ class GuzzleHttpClient implements HttpClientInterface
     private ?PsrResponseInterface $lastResponse = null;
 
     public function __construct(
-        private readonly int $timeout = 30,
+        private readonly int $timeout = 120,
         private readonly int $maxRetries = 3,
         ?callable $handler = null
     ) {

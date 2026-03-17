@@ -18,6 +18,7 @@ final readonly class OpenAIConfig
      * @param int $timeout Request timeout in seconds.
      * @param string $defaultModel Default model to use for text generation.
      * @param string $defaultEmbeddingModel Default model to use for embeddings.
+     * @param string $defaultImageModel Default model to use for image generation.
      */
     public function __construct(
         public string $baseUrl = self::DEFAULT_BASE_URL,
@@ -26,6 +27,7 @@ final readonly class OpenAIConfig
         public int $timeout = 30,
         public string $defaultModel = 'gpt-4o',
         public string $defaultEmbeddingModel = 'text-embedding-3-small',
+        public string $defaultImageModel = 'gpt-image-1',
     ) {
     }
 }

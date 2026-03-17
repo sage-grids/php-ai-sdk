@@ -12,14 +12,18 @@ use SageGrids\PhpAiSdk\Core\Schema\Schema;
 use SageGrids\PhpAiSdk\Core\Tool\Tool;
 use SageGrids\PhpAiSdk\Http\GuzzleHttpClient;
 use SageGrids\PhpAiSdk\Http\HttpClientInterface;
+use SageGrids\PhpAiSdk\Http\MultipartBody;
 use SageGrids\PhpAiSdk\Http\Request;
 use SageGrids\PhpAiSdk\Provider\EmbeddingProviderInterface;
+use SageGrids\PhpAiSdk\Provider\ImageProviderInterface;
 use SageGrids\PhpAiSdk\Provider\OpenAI\Exception\OpenAIException;
 use SageGrids\PhpAiSdk\Provider\ProviderCapabilities;
 use SageGrids\PhpAiSdk\Provider\TextProviderInterface;
 use SageGrids\PhpAiSdk\Result\EmbeddingData;
 use SageGrids\PhpAiSdk\Result\EmbeddingResult;
 use SageGrids\PhpAiSdk\Result\FinishReason;
+use SageGrids\PhpAiSdk\Result\ImageData;
+use SageGrids\PhpAiSdk\Result\ImageResult;
 use SageGrids\PhpAiSdk\Result\ObjectChunk;
 use SageGrids\PhpAiSdk\Result\ObjectResult;
 use SageGrids\PhpAiSdk\Result\TextChunk;
@@ -32,7 +36,7 @@ use SageGrids\PhpAiSdk\Result\Usage;
  * OpenAI provider implementation supporting text generation, streaming,
  * structured output, tool calling, and embeddings.
  */
-final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderInterface
+final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderInterface, ImageProviderInterface
 {
     use HasMiddleware;
     private HttpClientInterface $httpClient;
@@ -43,13 +47,48 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
      * Available OpenAI chat models.
      */
     private const AVAILABLE_MODELS = [
+        'gpt-5.4',
+        'gpt-5.4-pro',
+        'gpt-5.2',
+        'gpt-5-mini',
+        'o4-mini',
+        'o3-pro',
+        'o3',
+        'o3-mini',
+        'o1',
+        'gpt-4.1',
+        'gpt-4.1-mini',
+        'gpt-4.1-nano',
         'gpt-4o',
         'gpt-4o-mini',
         'gpt-4-turbo',
-        'gpt-4-turbo-preview',
         'gpt-4',
-        'gpt-3.5-turbo',
-        'gpt-3.5-turbo-16k',
+    ];
+
+    /**
+     * All OpenAI image generation models.
+     */
+    private const IMAGE_MODELS = [
+        'gpt-image-1.5',
+        'gpt-image-1',
+        'gpt-image-1-mini',
+        'chatgpt-image-latest',
+        'dall-e-3',
+        'dall-e-2',
+    ];
+
+    /**
+     * GPT image models (gpt-image-1 family) — distinct behaviour from DALL-E.
+     * - Support background transparency
+     * - Support edits (no mask needed)
+     * - Do NOT support variations
+     * - Different allowed sizes: 1024x1024, 1536x1024, 1024x1536, auto
+     */
+    private const GPT_IMAGE_MODELS = [
+        'gpt-image-1.5',
+        'gpt-image-1',
+        'gpt-image-1-mini',
+        'chatgpt-image-latest',
     ];
 
     /**
@@ -86,7 +125,7 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
             supportsStreaming: true,
             supportsStructuredOutput: true,
             supportsToolCalling: true,
-            supportsImageGeneration: false, // Not implemented in this provider
+            supportsImageGeneration: true,
             supportsSpeechGeneration: false, // Not implemented in this provider
             supportsTranscription: false, // Not implemented in this provider
             supportsEmbeddings: true,
@@ -99,7 +138,206 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
      */
     public function getAvailableModels(): array
     {
-        return array_merge(self::AVAILABLE_MODELS, self::EMBEDDING_MODELS);
+        return array_merge(self::AVAILABLE_MODELS, self::EMBEDDING_MODELS, self::IMAGE_MODELS);
+    }
+
+    public function generateImage(
+        string $prompt,
+        ?string $model = null,
+        string $size = '1024x1024',
+        string $quality = 'standard',
+        string $style = 'vivid',
+        int $n = 1,
+        string $responseFormat = 'url',
+        ?string $background = null,
+    ): ImageResult {
+        $effectiveModel = $model ?? $this->config->defaultImageModel;
+        $isGptModel     = in_array($effectiveModel, self::GPT_IMAGE_MODELS, true);
+        $isDalle3       = $effectiveModel === 'dall-e-3';
+
+        $requestBody = [
+            'model'  => $effectiveModel,
+            'prompt' => $prompt,
+            'n'      => $isDalle3 ? 1 : $n, // dall-e-3 only supports n=1
+            'size'   => $size,
+        ];
+
+        if ($isGptModel) {
+            // GPT image models always return b64_json; response_format is not a supported parameter
+            if ($background !== null) {
+                $requestBody['background'] = $background;
+            }
+        } else {
+            $requestBody['response_format'] = $responseFormat;
+        }
+
+        if ($isDalle3) {
+            $requestBody['quality'] = $quality;
+            $requestBody['style']   = $style;
+        }
+
+        $response = $this->request('POST', '/images/generations', $requestBody);
+
+        $images = array_map(
+            fn (array $item) => ImageData::fromArray($item),
+            $response['data'] ?? [],
+        );
+
+        return new ImageResult(images: $images, rawResponse: $response);
+    }
+
+    /**
+     * Edit an image using a text prompt (multipart upload).
+     *
+     * Supported models: gpt-image-1.5, gpt-image-1, gpt-image-1-mini, dall-e-2.
+     * The $image parameter can be a file path, a URL (gpt-image-1 only), or a
+     * base64 data URI (e.g. "data:image/png;base64,...").
+     * The $mask parameter is optional and only meaningful for dall-e-2.
+     */
+    public function editImage(
+        string $image,
+        string $prompt,
+        ?string $mask = null,
+        ?string $model = null,
+        string $size = '1024x1024',
+        int $n = 1,
+        string $responseFormat = 'url',
+    ): ImageResult {
+        $effectiveModel = $model ?? $this->config->defaultImageModel;
+        $isGptModel     = in_array($effectiveModel, self::GPT_IMAGE_MODELS, true);
+
+        $parts = [];
+        $parts[] = $this->buildImagePart('image', $image);
+        $parts[] = ['name' => 'prompt',           'contents' => $prompt];
+        $parts[] = ['name' => 'model',            'contents' => $effectiveModel];
+        $parts[] = ['name' => 'size',             'contents' => $size];
+        $parts[] = ['name' => 'n',                'contents' => (string) $n];
+        $parts[] = ['name' => 'response_format',  'contents' => $responseFormat];
+
+        if ($mask !== null && !$isGptModel) {
+            // mask is only supported by dall-e-2
+            $parts[] = $this->buildImagePart('mask', $mask);
+        }
+
+        $response = $this->requestMultipart('POST', '/images/edits', $parts);
+
+        $images = array_map(
+            fn (array $item) => ImageData::fromArray($item),
+            $response['data'] ?? [],
+        );
+
+        return new ImageResult(images: $images, rawResponse: $response);
+    }
+
+    /**
+     * Create variations of an image (dall-e-2 only).
+     *
+     * The $image parameter must be a file path to a square PNG file under 4 MB.
+     */
+    public function createImageVariation(
+        string $image,
+        ?string $model = null,
+        string $size = '1024x1024',
+        int $n = 1,
+        string $responseFormat = 'url',
+    ): ImageResult {
+        $effectiveModel = $model ?? 'dall-e-2'; // variations are dall-e-2 only
+
+        $parts = [];
+        $parts[] = $this->buildImagePart('image', $image);
+        $parts[] = ['name' => 'model',            'contents' => $effectiveModel];
+        $parts[] = ['name' => 'n',                'contents' => (string) $n];
+        $parts[] = ['name' => 'size',             'contents' => $size];
+        $parts[] = ['name' => 'response_format',  'contents' => $responseFormat];
+
+        $response = $this->requestMultipart('POST', '/images/variations', $parts);
+
+        $images = array_map(
+            fn (array $item) => ImageData::fromArray($item),
+            $response['data'] ?? [],
+        );
+
+        return new ImageResult(images: $images, rawResponse: $response);
+    }
+
+    /**
+     * Build a multipart part for an image field.
+     * Accepts a file path, URL string, or base64 data URI.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildImagePart(string $fieldName, string $image): array
+    {
+        if (str_starts_with($image, 'http://') || str_starts_with($image, 'https://')) {
+            // URL reference — supported by gpt-image-1 family
+            return ['name' => $fieldName, 'contents' => $image];
+        }
+
+        if (str_starts_with($image, 'data:')) {
+            // Base64 data URI: "data:image/png;base64,<data>"
+            $commaPos  = strpos($image, ',');
+            $mimeMatch = [];
+            preg_match('/data:([^;]+);/', $image, $mimeMatch);
+            $mime     = $mimeMatch[1] ?? 'image/png';
+            $ext      = explode('/', $mime)[1] ?? 'png';
+            $contents = base64_decode(substr($image, $commaPos + 1));
+
+            return ['name' => $fieldName, 'contents' => $contents, 'filename' => "$fieldName.$ext"];
+        }
+
+        // File path
+        if (!file_exists($image)) {
+            throw new \InvalidArgumentException("Image file not found: $image");
+        }
+
+        return ['name' => $fieldName, 'contents' => fopen($image, 'r'), 'filename' => basename($image)];
+    }
+
+    /**
+     * Make a multipart/form-data request to the OpenAI API.
+     *
+     * @param array<int, array<string, mixed>> $parts
+     * @return array<string, mixed>
+     * @throws OpenAIException
+     */
+    private function requestMultipart(string $method, string $endpoint, array $parts): array
+    {
+        $headers = ['Authorization' => 'Bearer ' . $this->apiKey];
+        // Do NOT set Content-Type — Guzzle sets it automatically with the boundary for multipart
+
+        if ($this->config->organization !== null) {
+            $headers['OpenAI-Organization'] = $this->config->organization;
+        }
+
+        if ($this->config->project !== null) {
+            $headers['OpenAI-Project'] = $this->config->project;
+        }
+
+        $url     = rtrim($this->config->baseUrl, '/') . $endpoint;
+        $request = new Request(method: $method, uri: $url, headers: $headers, body: new MultipartBody($parts));
+
+        if ($this->hasMiddleware()) {
+            $pipeline = $this->getMiddlewarePipeline();
+            $response = $pipeline->execute($request, fn ($req) => $this->httpClient->request($req));
+        } else {
+            $response = $this->httpClient->request($request);
+        }
+
+        $data = json_decode($response->body, true);
+
+        if (!is_array($data)) {
+            throw new OpenAIException(
+                'Invalid JSON response from OpenAI API',
+                $response->statusCode,
+                ['raw_body' => $response->body],
+            );
+        }
+
+        if (!$response->isSuccess()) {
+            throw OpenAIException::fromApiResponse($response->statusCode, $data);
+        }
+
+        return $data;
     }
 
     public function generateText(

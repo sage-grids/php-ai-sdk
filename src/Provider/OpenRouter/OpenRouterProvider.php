@@ -37,18 +37,22 @@ final class OpenRouterProvider implements TextProviderInterface
      * OpenRouter supports many more models - these are common examples.
      */
     private const AVAILABLE_MODELS = [
+        'anthropic/claude-4.6-opus',
+        'anthropic/claude-4.6-sonnet',
+        'anthropic/claude-3.7-sonnet',
+        'openai/gpt-5.4-pro',
+        'openai/gpt-5.4',
+        'openai/gpt-5-mini',
+        'meta-llama/llama-4-maverick',
+        'meta-llama/llama-4-scout',
+        'deepseek/deepseek-v3.2-speciale',
+        'deepseek/deepseek-v3.2',
+        'google/gemini-3.1-pro',
+        'google/gemini-3.1-flash',
         'anthropic/claude-3.5-sonnet',
-        'anthropic/claude-3-opus',
-        'anthropic/claude-3-haiku',
-        'openai/gpt-4o',
-        'openai/gpt-4o-mini',
-        'openai/gpt-4-turbo',
-        'google/gemini-pro-1.5',
+        'google/gemini-2.5-pro',
         'google/gemini-flash-1.5',
-        'meta-llama/llama-3.1-405b-instruct',
-        'meta-llama/llama-3.1-70b-instruct',
-        'mistralai/mistral-large',
-        'mistralai/mixtral-8x22b-instruct',
+        'meta-llama/llama-3.3-70b-instruct',
     ];
 
     public function __construct(

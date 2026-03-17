@@ -30,6 +30,7 @@ interface ImageProviderInterface extends ProviderInterface
         string $style = 'vivid',
         int $n = 1,
         string $responseFormat = 'url',
+        ?string $background = null,
     ): ImageResult;
 
     /**

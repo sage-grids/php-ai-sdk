@@ -259,11 +259,18 @@ final class OpenRouterProvider implements TextProviderInterface
         $object = json_decode($text, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new OpenRouterException(
-                'Failed to parse JSON response: ' . json_last_error_msg(),
-                0,
-                ['raw_content' => $text],
-            );
+            // Some models emit raw control characters (newlines, tabs) inside
+            // string values, which strict json_decode rejects. Escape them and retry.
+            $sanitized = self::escapeControlCharsInJsonStrings($text);
+            $object = json_decode($sanitized, true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new OpenRouterException(
+                    'Failed to parse JSON response: ' . json_last_error_msg(),
+                    0,
+                    ['raw_content' => $text],
+                );
+            }
         }
 
         // Validate against schema
@@ -623,5 +630,59 @@ final class OpenRouterProvider implements TextProviderInterface
             headers: $headers,
             body: json_encode($body),
         );
+    }
+
+    /**
+     * Escape raw control characters that appear inside JSON string literals.
+     *
+     * Models occasionally emit unescaped newlines, tabs, or other control
+     * characters inside string values, which violates RFC 8259 and causes
+     * json_decode to fail with JSON_ERROR_CTRL_CHAR. This walks the payload
+     * and escapes such characters only when they occur inside a string.
+     */
+    private static function escapeControlCharsInJsonStrings(string $json): string
+    {
+        $out = '';
+        $inString = false;
+        $escape = false;
+        $len = strlen($json);
+
+        for ($i = 0; $i < $len; $i++) {
+            $c = $json[$i];
+
+            if ($escape) {
+                $out .= $c;
+                $escape = false;
+                continue;
+            }
+
+            if ($inString && $c === '\\') {
+                $out .= $c;
+                $escape = true;
+                continue;
+            }
+
+            if ($c === '"') {
+                $inString = !$inString;
+                $out .= $c;
+                continue;
+            }
+
+            if ($inString && ord($c) < 0x20) {
+                $out .= match (ord($c)) {
+                    0x08 => '\\b',
+                    0x09 => '\\t',
+                    0x0A => '\\n',
+                    0x0C => '\\f',
+                    0x0D => '\\r',
+                    default => sprintf('\\u%04x', ord($c)),
+                };
+                continue;
+            }
+
+            $out .= $c;
+        }
+
+        return $out;
     }
 }

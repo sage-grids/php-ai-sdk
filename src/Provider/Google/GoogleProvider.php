@@ -14,9 +14,12 @@ use SageGrids\PhpAiSdk\Http\GuzzleHttpClient;
 use SageGrids\PhpAiSdk\Http\HttpClientInterface;
 use SageGrids\PhpAiSdk\Http\Request;
 use SageGrids\PhpAiSdk\Provider\Google\Exception\GoogleException;
+use SageGrids\PhpAiSdk\Provider\ImageProviderInterface;
 use SageGrids\PhpAiSdk\Provider\ProviderCapabilities;
 use SageGrids\PhpAiSdk\Provider\TextProviderInterface;
 use SageGrids\PhpAiSdk\Result\FinishReason;
+use SageGrids\PhpAiSdk\Result\ImageData;
+use SageGrids\PhpAiSdk\Result\ImageResult;
 use SageGrids\PhpAiSdk\Result\ObjectChunk;
 use SageGrids\PhpAiSdk\Result\ObjectResult;
 use SageGrids\PhpAiSdk\Result\TextChunk;
@@ -29,7 +32,7 @@ use SageGrids\PhpAiSdk\Result\Usage;
  * Google Gemini provider implementation supporting text generation, streaming,
  * structured output, and tool calling.
  */
-final class GoogleProvider implements TextProviderInterface
+final class GoogleProvider implements TextProviderInterface, ImageProviderInterface
 {
     use HasMiddleware;
     private HttpClientInterface $httpClient;
@@ -40,6 +43,7 @@ final class GoogleProvider implements TextProviderInterface
      * Available Google Gemini models.
      */
     private const AVAILABLE_MODELS = [
+        'gemini-3.5-flash',
         'gemini-3.1-pro',
         'gemini-3.1-flash',
         'gemini-3.1-flash-lite',
@@ -49,6 +53,22 @@ final class GoogleProvider implements TextProviderInterface
         'gemini-1.5-pro',
         'gemini-1.5-flash',
     ];
+
+    /**
+     * Models capable of generating images (inline image bytes via generateContent).
+     * The "Nano Banana" family generates and edits images natively.
+     */
+    private const IMAGE_MODELS = [
+        'gemini-3.1-flash-image',       // Nano Banana 2
+        'gemini-3.1-flash-lite-image',  // Nano Banana Lite
+        'gemini-3-pro-image',           // Nano Banana Pro
+        'gemini-2.5-flash-image',       // Nano Banana
+    ];
+
+    /**
+     * Default model used when an image request omits one.
+     */
+    private const DEFAULT_IMAGE_MODEL = 'gemini-3.1-flash-image';
 
     public function __construct(
         private readonly string $apiKey,
@@ -75,7 +95,7 @@ final class GoogleProvider implements TextProviderInterface
             supportsStreaming: true,
             supportsStructuredOutput: true,
             supportsToolCalling: true,
-            supportsImageGeneration: false,
+            supportsImageGeneration: true,
             supportsSpeechGeneration: false,
             supportsTranscription: false,
             supportsEmbeddings: false, // Gemini uses different API for embeddings
@@ -88,7 +108,7 @@ final class GoogleProvider implements TextProviderInterface
      */
     public function getAvailableModels(): array
     {
-        return self::AVAILABLE_MODELS;
+        return array_merge(self::AVAILABLE_MODELS, self::IMAGE_MODELS);
     }
 
     public function generateText(
@@ -433,6 +453,199 @@ final class GoogleProvider implements TextProviderInterface
                 yield ObjectChunk::final($finalObject, $accumulatedJson, $finishReason, $usage);
             }
         }
+    }
+
+    /**
+     * Generate an image from a text prompt.
+     *
+     * Gemini image models return the image inline (base64) from the standard
+     * :generateContent endpoint, so the OpenAI-style $quality/$style/$n/
+     * $responseFormat/$background parameters do not apply and are ignored.
+     * $size is likewise not honored by the Gemini image API (which controls
+     * output via aspect ratio, not pixel dimensions).
+     */
+    public function generateImage(
+        string $prompt,
+        ?string $model = null,
+        string $size = '1024x1024',
+        string $quality = 'standard',
+        string $style = 'vivid',
+        int $n = 1,
+        string $responseFormat = 'url',
+        ?string $background = null,
+    ): ImageResult {
+        $effectiveModel = $model ?? self::DEFAULT_IMAGE_MODEL;
+
+        $requestBody = [
+            'contents' => [
+                [
+                    'parts' => [
+                        ['text' => $prompt],
+                    ],
+                ],
+            ],
+            'generationConfig' => [
+                // Image models require IMAGE in the response modalities; TEXT is
+                // included for compatibility with models that reject IMAGE-only.
+                'responseModalities' => ['TEXT', 'IMAGE'],
+            ],
+        ];
+
+        $endpoint = $this->buildEndpoint(':generateContent', $effectiveModel);
+        $response = $this->request('POST', $endpoint, $requestBody);
+
+        return $this->buildImageResult($response, 'Google image generation returned no image data.');
+    }
+
+    /**
+     * Edit an existing image based on a prompt.
+     *
+     * The $image parameter may be a file path, a data URI
+     * ("data:image/png;base64,..."), or a raw base64 string. Gemini has no
+     * mask/inpainting parameter, so $mask is ignored; describe the desired
+     * change in the prompt instead.
+     */
+    public function editImage(
+        string $image,
+        string $prompt,
+        ?string $mask = null,
+        ?string $model = null,
+        string $size = '1024x1024',
+        int $n = 1,
+        string $responseFormat = 'url',
+    ): ImageResult {
+        $effectiveModel = $model ?? self::DEFAULT_IMAGE_MODEL;
+
+        $requestBody = [
+            'contents' => [
+                [
+                    'parts' => [
+                        ['text' => $prompt],
+                        $this->buildInlineImagePart($image),
+                    ],
+                ],
+            ],
+            'generationConfig' => [
+                'responseModalities' => ['TEXT', 'IMAGE'],
+            ],
+        ];
+
+        $endpoint = $this->buildEndpoint(':generateContent', $effectiveModel);
+        $response = $this->request('POST', $endpoint, $requestBody);
+
+        return $this->buildImageResult($response, 'Google image edit returned no image data.');
+    }
+
+    /**
+     * Create variations of an existing image.
+     *
+     * Gemini has no dedicated variation endpoint; use {@see editImage()} with an
+     * instructive prompt instead.
+     *
+     * @throws GoogleException Always.
+     */
+    public function createImageVariation(
+        string $image,
+        ?string $model = null,
+        string $size = '1024x1024',
+        int $n = 1,
+        string $responseFormat = 'url',
+    ): ImageResult {
+        throw new GoogleException(
+            'Google (Gemini) does not support image variations. Use editImage() with an instructive prompt instead.',
+        );
+    }
+
+    /**
+     * Build an ImageResult from a Gemini generateContent response, extracting
+     * every inline image part.
+     *
+     * @param array<string, mixed> $response
+     * @throws GoogleException When the response contains no image data.
+     */
+    private function buildImageResult(array $response, string $emptyMessage): ImageResult
+    {
+        /** @var list<array<string, mixed>> $candidates */
+        $candidates = is_array($response['candidates'] ?? null) ? $response['candidates'] : [];
+        $images = [];
+
+        foreach ($candidates as $candidate) {
+            if (!is_array($candidate)) {
+                continue;
+            }
+            /** @var array<string, mixed> $content */
+            $content = is_array($candidate['content'] ?? null) ? $candidate['content'] : [];
+            /** @var list<array<string, mixed>> $parts */
+            $parts = is_array($content['parts'] ?? null) ? $content['parts'] : [];
+
+            foreach ($parts as $part) {
+                if (!is_array($part)) {
+                    continue;
+                }
+                // Gemini returns inline image bytes under inlineData (camelCase)
+                // or inline_data (snake_case) depending on API version.
+                $inline = null;
+                if (isset($part['inlineData']) && is_array($part['inlineData'])) {
+                    $inline = $part['inlineData'];
+                } elseif (isset($part['inline_data']) && is_array($part['inline_data'])) {
+                    $inline = $part['inline_data'];
+                }
+
+                if ($inline === null) {
+                    continue;
+                }
+
+                $data = $inline['data'] ?? null;
+                if (is_string($data) && $data !== '') {
+                    $images[] = new ImageData(base64: $data);
+                }
+            }
+        }
+
+        if (empty($images)) {
+            throw new GoogleException($emptyMessage, 0, ['raw_response' => $response]);
+        }
+
+        $usage = isset($response['usageMetadata']) && is_array($response['usageMetadata'])
+            ? $this->parseUsageMetadata($response['usageMetadata'])
+            : null;
+
+        return new ImageResult(images: $images, usage: $usage, rawResponse: $response);
+    }
+
+    /**
+     * Build a Gemini inlineData part from a file path, data URI, or raw base64.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildInlineImagePart(string $image): array
+    {
+        $mimeType = 'image/png';
+        $base64   = $image;
+
+        if (str_starts_with($image, 'data:')) {
+            if (preg_match('#^data:([^;]+);base64,(.*)$#s', $image, $matches) === 1) {
+                $mimeType = $matches[1];
+                $base64   = $matches[2];
+            }
+        } elseif (is_file($image)) {
+            $contents = file_get_contents($image);
+            if ($contents === false) {
+                throw new GoogleException("Unable to read image file: {$image}");
+            }
+            $base64   = base64_encode($contents);
+            $detected = function_exists('mime_content_type') ? @mime_content_type($image) : false;
+            if (is_string($detected) && $detected !== '') {
+                $mimeType = $detected;
+            }
+        }
+
+        return [
+            'inlineData' => [
+                'mimeType' => $mimeType,
+                'data'     => $base64,
+            ],
+        ];
     }
 
     /**

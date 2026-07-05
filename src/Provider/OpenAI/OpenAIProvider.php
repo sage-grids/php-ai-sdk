@@ -45,8 +45,10 @@ final class OpenAIProvider implements TextProviderInterface, EmbeddingProviderIn
 
     /**
      * Available OpenAI chat models.
+     * AVAILABLE_MODELS is purely informational — it is never used for runtime validation. Any model string is accepted and forwarded directly to the provider API without being checked against the list.
      */
     private const AVAILABLE_MODELS = [
+        'gpt-5.5',
         'gpt-5.4',
         'gpt-5.4-pro',
         'gpt-5.2',

@@ -41,6 +41,7 @@ final class GoogleProvider implements TextProviderInterface, ImageProviderInterf
 
     /**
      * Available Google Gemini models.
+     * AVAILABLE_MODELS is purely informational — it is never used for runtime validation. Any model string is accepted and forwarded directly to the provider API without being checked against the list
      */
     private const AVAILABLE_MODELS = [
         'gemini-3.5-flash',

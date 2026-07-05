@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.0](https://github.com/sage-grids/php-ai-sdk/compare/v1.0.2...v1.1.0) (2026-07-05)
+
+
+### Features
+
+* add new OpenAI model 'gpt-5.5' to available models list ([b83f071](https://github.com/sage-grids/php-ai-sdk/commit/b83f071bbe40634b6d277957f72fb642beb64b2d))
+* implement image generation and editing in GoogleProvider ([46c0c1b](https://github.com/sage-grids/php-ai-sdk/commit/46c0c1b39f238c2e0d413229ce89cea0785061bf))
+
+
+### Bug Fixes
+
+* enhance JSON parsing in OpenRouterProvider to handle control characters ([13d5e4b](https://github.com/sage-grids/php-ai-sdk/commit/13d5e4b3e05673aa773d8b7726184cd79d9ed229))
+
 ## [1.0.2](https://github.com/sage-grids/php-ai-sdk/compare/v1.0.1...v1.0.2) (2026-03-24)
 
 
